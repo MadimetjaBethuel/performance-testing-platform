@@ -1,0 +1,61 @@
+version: "3.8"
+
+services:
+  performance-testing:
+    build: .
+    container_name: performance-testing-platform
+    environment:
+      # AWS Configuration
+      - OUTPUT_BUCKET=${OUTPUT_BUCKET:-performance-results-bucket}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+
+      # Email Configuration
+      - SENDER_EMAIL=${SENDER_EMAIL:-performance-tests@yourcompany.com}
+      - RECIPIENT_EMAILS=${RECIPIENT_EMAILS:-team@yourcompany.com}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+    volumes:
+      # Mount data directory for input files
+      - ./data:/app/data
+      # Mount source code for development (optional)
+      - ./src:/app/src:ro
+      # Mount templates
+      - ./templates:/app/templates:ro
+    networks:
+      - performance-network
+    restart: unless-stopped
+    # Override command for development/testing
+    # command: python -c "import time; time.sleep(3600)"  # Keep container running for debugging
+
+  # Optional: Add a development container with shell access
+  performance-dev:
+    build: .
+    container_name: performance-testing-dev
+    environment:
+      - OUTPUT_BUCKET=${OUTPUT_BUCKET:-performance-results-bucket}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-1}
+      - SENDER_EMAIL=${SENDER_EMAIL:-performance-tests@yourcompany.com}
+      - RECIPIENT_EMAILS=${RECIPIENT_EMAILS:-team@yourcompany.com}
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+    volumes:
+      - ./data:/app/data
+      - ./src:/app/src
+      - ./templates:/app/templates
+    networks:
+      - performance-network
+    command: sleep infinity
+    profiles:
+      - dev
+
+networks:
+  performance-network:
+    driver: bridge
