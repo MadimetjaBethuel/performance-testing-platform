@@ -96,8 +96,12 @@ def run_phase(urls, concurrency, duration):
     return results
 
 
-def calculate_metrics(all_results):
+def calculate_metrics(all_results, filter_url=None):
     """Calculate comprehensive performance metrics."""
+    # Filter by URL if specified
+    if filter_url:
+        all_results = [r for r in all_results if r.get("url") == filter_url]
+
     success_results = [r for r in all_results if r.get("success", False)]
     error_results = [r for r in all_results if not r.get("success", False)]
 
@@ -117,7 +121,8 @@ def calculate_metrics(all_results):
             "p50": success_times[int(len(success_times) * 0.5)],
             "p90": success_times[int(len(success_times) * 0.9)],
             "p95": success_times[int(len(success_times) * 0.95)],
-            "p99": success_times[int(len(success_times) * 0.99)] if len(success_times) >= 100 else success_times[-1]
+            "p99": (success_times[int(len(success_times) * 0.99)]
+                    if len(success_times) >= 100 else success_times[-1])
         }
 
     return {
@@ -126,6 +131,52 @@ def calculate_metrics(all_results):
         "status_codes": status_codes,
         "percentiles": percentiles
     }
+
+
+def calculate_per_url_metrics(all_results):
+    """Calculate metrics broken down by individual URL."""
+    # Get unique URLs from results
+    unique_urls = list(set([r.get("url") for r in all_results
+                            if r.get("url")]))
+
+    per_url_metrics = {}
+
+    for url in unique_urls:
+        url_results = [r for r in all_results if r.get("url") == url]
+        url_metrics = calculate_metrics(url_results)
+
+        success_count = len(url_metrics["success_times"])
+        total_count = len(url_results)
+        success_times = url_metrics["success_times"]
+
+        # Calculate success rate
+        success_rate = ((success_count / total_count) * 100
+                        if total_count > 0 else 0)
+
+        # Calculate average response time
+        avg_time = (sum(success_times) / len(success_times)
+                    if success_times else None)
+
+        per_url_metrics[url] = {
+            "total_requests": total_count,
+            "success_count": success_count,
+            "error_count": len(url_metrics["error_results"]),
+            "success_rate_percent": round(success_rate, 2),
+            "avg_response_time": (round(avg_time, 3)
+                                  if avg_time is not None else None),
+            "min_response_time": (round(min(success_times), 3)
+                                  if success_times else None),
+            "max_response_time": (round(max(success_times), 3)
+                                  if success_times else None),
+            "percentiles": {k: round(v, 3)
+                            for k, v in url_metrics["percentiles"].items()},
+            "status_codes": url_metrics["status_codes"],
+            "errors": [{"error": r.get("error", "Unknown error"),
+                        "time": r.get("time", 0)}
+                       for r in url_metrics["error_results"]]
+        }
+
+    return per_url_metrics
 
 
 def save_results_to_s3(summary, detailed_results, timestamp):
@@ -216,6 +267,9 @@ def lambda_handler(event, context):
     # Calculate overall metrics
     overall_metrics = calculate_metrics(all_results)
 
+    # Calculate per-URL metrics
+    per_url_metrics = calculate_per_url_metrics(all_results)
+
     # Create comprehensive summary
     summary = {
         "timestamp": datetime.utcnow().isoformat(),
@@ -231,7 +285,8 @@ def lambda_handler(event, context):
         "status_codes": overall_metrics["status_codes"],
         "phase_summaries": phase_summaries,
         "urls_tested": len(urls),
-        "concurrency_pattern": CONCURRENCY_STEPS
+        "concurrency_pattern": CONCURRENCY_STEPS,
+        "per_url_metrics": per_url_metrics
     }
 
     # Prepare detailed results
@@ -239,6 +294,7 @@ def lambda_handler(event, context):
         "summary": summary,
         "all_requests": all_results,
         "phase_details": phase_summaries,
+        "per_url_results": per_url_metrics,
         "test_configuration": {
             "total_duration": TOTAL_DURATION,
             "phase_length": PHASE_LENGTH,

@@ -8,12 +8,14 @@ from datetime import datetime
 import boto3
 from config import SENDER_EMAIL, RECIPIENT_EMAILS, SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD
 
+
 def create_email_body(summary, detailed_results=None):
     """Create HTML email body with test results."""
-    
+
     # Calculate additional metrics
-    success_rate = (summary['success_count'] / summary['total_requests'] * 100) if summary['total_requests'] > 0 else 0
-    
+    success_rate = (summary['success_count'] / summary['total_requests']
+                    * 100) if summary['total_requests'] > 0 else 0
+
     html_body = f"""
     <html>
     <head>
@@ -79,18 +81,68 @@ def create_email_body(summary, detailed_results=None):
         
         <div class="summary">
             <h2>Test Configuration</h2>
-            <p><strong>Concurrency Pattern:</strong> [20, 50, 100, 60, 30] users per phase</p>
-            <p><strong>Phase Duration:</strong> 2 minutes each</p>
-            <p><strong>Total Test Duration:</strong> 10 minutes</p>
-        </div>
-        
+            <p><strong>Concurrency Pattern:</strong> {summary.get('concurrency_pattern', 'N/A')}</p>
+            <p><strong>URLs Tested:</strong> {summary.get('urls_tested', 'N/A')}</p>
+        </div>"""
+
+    # Add per-URL metrics if available
+    if 'per_url_metrics' in summary and summary['per_url_metrics']:
+        html_body += """
+        <div class="summary">
+            <h2>Per-URL Performance Metrics</h2>
+            <table style="width: 100%; border-collapse: collapse; margin: 10px 0;">
+                <thead>
+                    <tr style="background-color: #f8f9fa; border: 1px solid #ddd;">
+                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">URL</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Requests</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Success Rate</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Avg Response Time</th>
+                        <th style="padding: 10px; text-align: center; border: 1px solid #ddd;">Status Codes</th>
+                    </tr>
+                </thead>
+                <tbody>"""
+
+        for url, metrics in summary['per_url_metrics'].items():
+            # Truncate URL for display
+            display_url = url if len(url) <= 60 else url[:57] + "..."
+            success_rate = metrics.get('success_rate_percent', 0)
+            avg_time = metrics.get('avg_response_time')
+
+            # Status code summary
+            status_codes = metrics.get('status_codes', {})
+            status_summary = ', '.join(
+                [f"{code}: {count}" for code, count in status_codes.items()])
+
+            # Color code success rate
+            success_class = 'status-good' if success_rate > 95 else 'status-warning' if success_rate > 90 else 'status-error'
+
+            html_body += f"""
+                    <tr style="border: 1px solid #ddd;">
+                        <td style="padding: 8px; border: 1px solid #ddd; word-break: break-all;" title="{url}">{display_url}</td>
+                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">{metrics.get('total_requests', 0)}</td>
+                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd;" class="{success_class}">
+                            <strong>{success_rate:.1f}%</strong>
+                        </td>
+                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd;">
+                            {f"{avg_time:.3f}s" if avg_time is not None else "N/A"}
+                        </td>
+                        <td style="padding: 8px; text-align: center; border: 1px solid #ddd; font-size: 12px;">{status_summary}</td>
+                    </tr>"""
+
+        html_body += """
+                </tbody>
+            </table>
+        </div>"""
+
+    html_body += """
         <hr>
         <p><small>This is an automated performance test report. For detailed logs, check the S3 bucket or CloudWatch logs.</small></p>
     </body>
     </html>
     """
-    
+
     return html_body
+
 
 def send_email_via_smtp(summary, detailed_results=None):
     """Send email via SMTP (for local testing or custom SMTP servers)."""
@@ -99,33 +151,34 @@ def send_email_via_smtp(summary, detailed_results=None):
         msg['Subject'] = f"Performance Test Results - {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         msg['From'] = SENDER_EMAIL
         msg['To'] = ", ".join(RECIPIENT_EMAILS)
-        
+
         # Create HTML body
         html_body = create_email_body(summary, detailed_results)
         html_part = MIMEText(html_body, 'html')
         msg.attach(html_part)
-        
+
         # Connect to SMTP server and send
         server = smtplib.SMTP(SMTP_HOST, SMTP_PORT)
         server.starttls()
         server.login(SMTP_USER, SMTP_PASSWORD)
         server.send_message(msg)
         server.quit()
-        
+
         print(f"Email sent successfully to {RECIPIENT_EMAILS}")
         return True
-        
+
     except Exception as e:
         print(f"Failed to send email via SMTP: {e}")
         return False
+
 
 def send_email_via_ses(summary, detailed_results=None):
     """Send email via Amazon SES."""
     try:
         ses_client = boto3.client('ses')
-        
+
         html_body = create_email_body(summary, detailed_results)
-        
+
         response = ses_client.send_email(
             Source=SENDER_EMAIL,
             Destination={'ToAddresses': RECIPIENT_EMAILS},
@@ -136,13 +189,14 @@ def send_email_via_ses(summary, detailed_results=None):
                 }
             }
         )
-        
+
         print(f"Email sent via SES successfully to {RECIPIENT_EMAILS}")
         return True
-        
+
     except Exception as e:
         print(f"Failed to send email via SES: {e}")
         return False
+
 
 def send_performance_report(summary, detailed_results=None, use_ses=True):
     """Main function to send performance test report."""
@@ -153,5 +207,5 @@ def send_performance_report(summary, detailed_results=None, use_ses=True):
             success = send_email_via_smtp(summary, detailed_results)
     else:
         success = send_email_via_smtp(summary, detailed_results)
-    
+
     return success
