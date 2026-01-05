@@ -1,0 +1,36 @@
+# OS / editor
+.DS_Store
+*.swp
+.vscode/
+.idea/
+
+# Node
+**/node_modules/
+**/dist/
+frontend/.next/
+frontend/out/
+frontend/.vercel/
+frontend/next-env.d.ts
+
+# Next
+# (remove next-env.d.ts from ignores if you want it tracked)
+
+# Python / backend
+backend/__pycache__/
+backend/**/*.pyc
+backend/.venv/
+backend/venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+*.egg-info/
+pip-wheel-metadata/
+.python-version
+
+# Coverage
+coverage/
+**/coverage/
+
+# Env files & logs
+.env
+.env.* 
+*.log
