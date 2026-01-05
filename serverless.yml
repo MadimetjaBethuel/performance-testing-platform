@@ -1,6 +1,0 @@
-my_lambda_project/
-│
-├── input.json
-├── lambda.py
-├── requirements.txt
-└── README.md
