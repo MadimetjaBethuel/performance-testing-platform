@@ -8,12 +8,19 @@ import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import { Plus, X, Upload, Download, Play } from "lucide-react"
+import { useSocket } from "~/hooks/useSocket"
 
 export function TestConfiguration() {
   const [urls, setUrls] = useState([{ id: 1, url: "" }])
   const [concurrency, setConcurrency] = useState("10,20,30")
   const [rampDuration, setRampDuration] = useState("60")
   const [holdDuration, setHoldDuration] = useState("120")
+
+  const {startTest} = useSocket();
+
+  startTest({
+    urls: ["http://localhost:3000"]
+  })
 
   const addUrl = () => {
     setUrls([...urls, { id: Date.now(), url: "" }])

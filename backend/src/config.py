@@ -2,7 +2,7 @@ import os
 
 # Test Configuration
 TOTAL_DURATION = 3600   # 1 hour (60 minutes total)
-PHASE_LENGTH = 720      # 12 minutes per phase (3600 / 5 phases)
+PHASE_LENGTH = 60      # 12 minutes per phase (3600 / 5 phases)
 CONCURRENCY_STEPS = [1000, 3000, 5000, 10000]  # ramp-up and down pattern
 
 # AWS Configuration
