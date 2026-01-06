@@ -7,10 +7,10 @@
 # Node
 **/node_modules/
 **/dist/
-frontend/.next/
-frontend/out/
-frontend/.vercel/
-frontend/next-env.d.ts
+loadforge/.next/
+loadforge/out/
+loadforge/.vercel/
+loadforge/next-env.d.ts
 
 # Next
 # (remove next-env.d.ts from ignores if you want it tracked)
