@@ -2,8 +2,7 @@ from flask import Flask, jsonify, request
 from engine.core import run_performance_test
 from url_loader import validate_urls, load_urls_from_json
 from config import CONCURRENCY_STEPS, PHASE_LENGTH, REQUEST_TIMEOUT
-import json
-import traceback
+
 
 app = Flask(__name__)
 
