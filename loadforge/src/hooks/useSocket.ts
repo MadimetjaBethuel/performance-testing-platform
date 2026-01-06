@@ -24,7 +24,13 @@ export function useSocket() {
     });
 
     return () => {
-      socket.off();
+       socket.off("connect");
+      socket.off("connected");
+      socket.off("test_started");
+      socket.off("phase_complete");
+      socket.off("test_completed");
+      socket.off("error");
+      socket.off("disconnect");
     };
   }, []);
 

@@ -14,14 +14,16 @@ def hit_url(url, request_timeout=REQUEST_TIMEOUT):
             "url": url,
             "status_code": response.status_code,
             "latency": latency,
+            "success": True,
             "error": None
         }
     except requests.RequestException as e:
         latency = time.time() - start
         return {
             "url": url,
-            "status_code": None,
+            "status_code": "error",
             "latency": latency,
+            "success": False,
             "error": str(e)
         }
 

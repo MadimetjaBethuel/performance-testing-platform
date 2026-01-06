@@ -80,6 +80,8 @@ def handle_start_test(data):
             "percentiles": phase_results_summary.get("percentiles", {}),
         }
 
+        print(phase_summary)
+
         phase_summaries.append(phase_summary)
 
         # Emit phase completion event to the client

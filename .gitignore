@@ -17,6 +17,7 @@ loadforge/next-env.d.ts
 
 # Python / backend
 backend/__pycache__/
+backend/src/__pycache__/*
 backend/**/*.pyc
 backend/.venv/
 backend/venv/
@@ -25,6 +26,8 @@ backend/.mypy_cache/
 *.egg-info/
 pip-wheel-metadata/
 .python-version
+
+backend/results/
 
 # Coverage
 coverage/
