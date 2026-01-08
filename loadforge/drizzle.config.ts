@@ -8,5 +8,5 @@ export default {
   dbCredentials: {
     url: env.DATABASE_URL,
   },
-  tablesFilter: ["loadforge_*"],
+  tablesFilter: ["loadforge_dev*"],
 } satisfies Config;
