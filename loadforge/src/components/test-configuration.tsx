@@ -2,25 +2,36 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState , useEffect} from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card"
 import { Button } from "~/components/ui/button"
 import { Input } from "~/components/ui/input"
 import { Label } from "~/components/ui/label"
 import { Plus, X, Upload, Download, Play } from "lucide-react"
-import { useSocket } from "~/hooks/useSocket"
+import {api} from "~/trpc/react"
 
 export function TestConfiguration() {
   const [urls, setUrls] = useState([{ id: 1, url: "" }])
   const [concurrency, setConcurrency] = useState("10,20,30")
   const [rampDuration, setRampDuration] = useState("60")
   const [holdDuration, setHoldDuration] = useState("120")
+   const [isConnected, setIsConnected] = useState(false)
+   
 
-  const {startTest} = useSocket();
-
-  startTest({
-    urls: ["http://localhost:3000"]
+ api.test.onProgress.useSubscription(undefined, {
+    onStarted() {
+      console.log('🔌 [CLIENT] Subscription started')
+      setIsConnected(true)
+    },
+    onData(data) {
+      console.log("✅ [CLIENT] Received data:", data)
+    },
+    onError(err) {
+      console.error("❌ [CLIENT] Subscription error:", err)
+      setIsConnected(false)
+    },
   })
+  const start = api.test.startTest.useMutation()
 
   const addUrl = () => {
     setUrls([...urls, { id: Date.now(), url: "" }])
@@ -186,7 +197,7 @@ export function TestConfiguration() {
           <Button variant="outline" className="border-gray-300 bg-transparent">
             Save as Template
           </Button>
-          <Button className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700">
+          <Button  onClick={() => start.mutate({ urls:"" })} className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700">
             <Play className="mr-2 h-4 w-4" />
             Run Test
           </Button>

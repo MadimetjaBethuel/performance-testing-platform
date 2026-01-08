@@ -1,11 +1,11 @@
 # api_socket_single_client.py
-
 from flask import Flask
 from flask_socketio import SocketIO, emit
 from engine.core import run_performance_test
 from url_loader import validate_urls, load_urls_from_json
 from config import CONCURRENCY_STEPS, PHASE_LENGTH, REQUEST_TIMEOUT
 
+# eventlet.monkey_patch()
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")  # allow Next.js
 
@@ -24,7 +24,7 @@ def health_check():
 # ------------------------
 @socketio.on("connect")
 def handle_connect():
-    emit("connected", {"message": "WebSocket connected"})
+    socketio.emit("connected", {"message": "WebSocket connected"})
 
 
 # ------------------------
@@ -54,7 +54,8 @@ def handle_start_test(data):
     total_phases = len(concurrency_steps)
     phase_summaries = []
 
-    emit("test_started", {"message": "Test started"})
+    socketio.emit("test_started", {"message": "Test started"})
+    print("Starting stateless performance test...")
 
     # ------------------------
     # Run phases synchronously (single client)
@@ -79,13 +80,11 @@ def handle_start_test(data):
             "error_count": phase_results_summary["error_count"],
             "percentiles": phase_results_summary.get("percentiles", {}),
         }
-
-        print(phase_summary)
-
         phase_summaries.append(phase_summary)
 
         # Emit phase completion event to the client
-        emit("phase_complete", phase_summary)
+        socketio.emit("phase_complete", phase_summary)
+        print('phase completed')
 
     # ------------------------
     # Emit final test summary
@@ -96,7 +95,8 @@ def handle_start_test(data):
         "success_count": sum(p["success_count"] for p in phase_summaries),
         "error_count": sum(p["error_count"] for p in phase_summaries),
     }
-    emit("test_completed", final_summary)
+    socketio.emit("test_completed", final_summary)
+    print('test complete')
 
 
 # ------------------------

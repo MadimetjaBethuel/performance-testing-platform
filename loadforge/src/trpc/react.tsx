@@ -1,15 +1,13 @@
 "use client"
 
-import type React from "react"
-
+import React, { useState } from "react"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { loggerLink, unstable_httpBatchStreamLink } from "@trpc/client"
 import { createTRPCReact } from "@trpc/react-query"
-import type { inferRouterInputs, inferRouterOutputs } from "@trpc/server"
-import { useState } from "react"
+import { loggerLink, splitLink, httpBatchLink, wsLink, createWSClient } from "@trpc/client"
 import superjson from "superjson"
-
 import type { AppRouter } from "~/server/api/root"
+
+export const api = createTRPCReact<AppRouter>()
 
 const createQueryClient = () => new QueryClient()
 
@@ -18,13 +16,18 @@ const getQueryClient = () => {
   if (typeof window === "undefined") {
     return createQueryClient()
   }
-  return (clientQueryClientSingleton ??= createQueryClient())
+  return clientQueryClientSingleton ??= createQueryClient()
 }
 
-export const api = createTRPCReact<AppRouter>()
-
-export type RouterInputs = inferRouterInputs<AppRouter>
-export type RouterOutputs = inferRouterOutputs<AppRouter>
+// --- Create a WebSocket client for subscriptions ---
+const wsClient = createWSClient({
+  url: "ws://localhost:3001"
+  
+})
+const wsLinkWithTransformer = wsLink({
+  client: wsClient,
+  transformer: superjson, // <-- must match your router
+});
 
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient()
@@ -36,14 +39,21 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
           enabled: (op) =>
             process.env.NODE_ENV === "development" || (op.direction === "down" && op.result instanceof Error),
         }),
-        unstable_httpBatchStreamLink({
-          transformer: superjson,
-          url: getBaseUrl() + "/api/trpc",
-          headers: () => {
-            const headers = new Headers()
-            headers.set("x-trpc-source", "nextjs-react")
-            return headers
+        // --- split between HTTP and WS ---
+        splitLink({
+          condition(op) {
+            return op.type === "subscription"
           },
+          true: wsLinkWithTransformer,
+          false: httpBatchLink({
+            url: getBaseUrl() + "/api/trpc",
+            transformer: superjson,
+            headers: () => {
+              const headers = new Headers()
+              headers.set("x-trpc-source", "nextjs-react")
+              return headers
+            },
+          }),
         }),
       ],
     }),
