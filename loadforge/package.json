@@ -9,7 +9,13 @@
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:ws\"",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "migrate:generate": "drizzle-kit generate",
+    "migrate:apply": "drizzle-kit migrate",
+    "migrate:push": "drizzle-kit push",
+    "migrate:pull": "drizzle-kit pull",
+    "migrate:check": "drizzle-kit check",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

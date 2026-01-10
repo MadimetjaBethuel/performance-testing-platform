@@ -31,15 +31,6 @@ export const testsRouter = createTRPCRouter({
     const unsubscribe = subscribe((event) => {
       console.log("📥 [TRPC] Event received from bus:", event);
 
-      // Filter by event types if specified
-      if (
-        opts.input?.eventTypes &&
-        !opts.input.eventTypes.includes(event.type)
-      ) {
-        console.log("⏭️ [TRPC] Event filtered out");
-        return;
-      }
-
       // If someone is waiting, resolve immediately
       if (pendingResolve) {
         console.log("📤 [TRPC] Resolving pending promise with event");
