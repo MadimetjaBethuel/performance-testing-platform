@@ -4,7 +4,7 @@ from flask_socketio import SocketIO, emit
 from engine.core import run_performance_test
 from url_loader import validate_urls, load_urls_from_json
 from config import CONCURRENCY_STEPS, PHASE_LENGTH, REQUEST_TIMEOUT
-
+import time
 # eventlet.monkey_patch()
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")  # allow Next.js
@@ -24,7 +24,7 @@ def health_check():
 # ------------------------
 @socketio.on("connect")
 def handle_connect():
-    socketio.emit("connected", {"message": "WebSocket connected"})
+    emit("connected", {"message": "WebSocket connected"})
 
 
 # ------------------------
@@ -47,9 +47,13 @@ def handle_start_test(data):
         emit("error", {"error": "No valid URLs provided"})
         return
 
-    concurrency_steps = data.get("concurrency_steps", CONCURRENCY_STEPS)
+    concurrency_steps = data.get("concurrency", CONCURRENCY_STEPS)
     phase_length = data.get("phase_length", PHASE_LENGTH)
     request_timeout = data.get("request_timeout", REQUEST_TIMEOUT)
+    test_id = data.get("test_id")
+
+    if not test_id:
+        raise ValueError("test_id is required to start the test")
 
     total_phases = len(concurrency_steps)
     phase_summaries = []
@@ -73,6 +77,7 @@ def handle_start_test(data):
 
         phase_summary = {
             "phase": idx + 1,
+            "test_id": test_id,
             "total_phases": total_phases,
             "concurrency": concurrency,
             "requests": len(all_requests),
@@ -90,11 +95,13 @@ def handle_start_test(data):
     # Emit final test summary
     # ------------------------
     final_summary = {
+        "test_id": test_id,
         "phase_summaries": phase_summaries,
         "total_requests": sum(p["requests"] for p in phase_summaries),
         "success_count": sum(p["success_count"] for p in phase_summaries),
         "error_count": sum(p["error_count"] for p in phase_summaries),
     }
+    time.sleep(10)
     socketio.emit("test_completed", final_summary)
     print('test complete')
 

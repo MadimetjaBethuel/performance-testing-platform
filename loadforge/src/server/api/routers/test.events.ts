@@ -1,16 +1,34 @@
-import { observable } from "@trpc/server/observable";
 import { subscribe } from "../../socket/eventbus";
 import { tracked } from "@trpc/server";
 import { getSocket } from "../../socket/engine.socket";
 import { createTRPCRouter, publicProcedure } from "../trpc";
-import EventEmitter, { on } from "events";
-const ee = new EventEmitter();
+import { z } from "zod";
+import { completeTests, testPhases, testResults } from "../../db/schema";
+import { v4 as uuidv4 } from "uuid";
+const DEFAULT_USER_ID = "default-user-001";
 
 export const testsRouter = createTRPCRouter({
   startTest: publicProcedure
-    .input((v) => v as any)
-    .mutation(({ input }) => {
+    .input(
+      z.object({
+        urls: z.array(z.string().url()),
+        concurrency: z.array(z.number().positive()),
+        phase_length: z.number().positive(),
+        ramp_up_time: z.number().min(0),
+        ramp_down_time: z.number().min(0),
+        hold_duration: z.number().min(0),
+        total_duration: z.number().positive(),
+        name: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input, ctx }) => {
       const socket = getSocket();
+
+      if (!socket.connected) {
+        throw new Error(
+          "Socket not connected. PLease ensure the backend is running ."
+        );
+      }
       console.log("Starting test with input:", input);
       console.log(
         "🔌 [MUTATION] Socket ID:",
@@ -18,7 +36,39 @@ export const testsRouter = createTRPCRouter({
         "Connected:",
         socket.connected
       );
-      socket.emit("start_test", { urls: input.urls });
+      const id = uuidv4();
+
+      try {
+        await ctx.db.insert(completeTests).values({
+          id: id.toString(),
+          user_id: DEFAULT_USER_ID,
+          name: input.name || "Load test for now",
+          urls: input.urls,
+          concurrency_pattern: input.concurrency,
+          duration: input.total_duration,
+          ramp_up_time: input.ramp_up_time,
+          ramp_down_time: input.ramp_down_time,
+          status: "running",
+        });
+
+        socket.emit("start_test", {
+          urls: input.urls,
+          concurrency: input.concurrency,
+          phase_length: input.phase_length,
+          test_id: id,
+        });
+
+        return {
+          status: "Test Started",
+          test_id: id,
+        };
+      } catch (error) {
+        console.log("Failed to start test");
+        throw new Error(
+          "Failed to start test. please check db connection or socket connection"
+        );
+      }
+
       return { status: "Test started" };
     }),
   onProgress: publicProcedure.subscription(async function* (opts) {
@@ -29,8 +79,6 @@ export const testsRouter = createTRPCRouter({
     const queue: any[] = [];
 
     const unsubscribe = subscribe((event) => {
-      console.log("📥 [TRPC] Event received from bus:", event);
-
       // If someone is waiting, resolve immediately
       if (pendingResolve) {
         console.log("📤 [TRPC] Resolving pending promise with event");

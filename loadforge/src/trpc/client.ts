@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { applyWSSHandler } from "@trpc/server/adapters/ws";
 import { WebSocketServer } from "ws";
 import { appRouter } from "../server/api/root";

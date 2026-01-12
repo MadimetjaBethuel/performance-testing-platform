@@ -3,14 +3,16 @@ import superjson from "superjson";
 import { ZodError } from "zod";
 import { eventBind } from "../socket/events.bind";
 import { onPhaseComplete } from "../socket/phase.complete";
+import { onTestComplete } from "../socket/test.complete";
 import { db } from "../db/index";
 
 eventBind();
 onPhaseComplete();
+onTestComplete();
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   return {
     ...opts,
-    db
+    db,
   };
 };
 
