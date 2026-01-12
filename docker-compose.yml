@@ -2,7 +2,9 @@ version: "3.8"
 
 services:
   performance-testing:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: performance-testing-platform
     environment:
       # AWS Configuration
@@ -33,7 +35,9 @@ services:
 
   # Optional: Add a development container with shell access
   performance-dev:
-    build: .
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: performance-testing-dev
     environment:
       - OUTPUT_BUCKET=${OUTPUT_BUCKET:-performance-results-bucket}
