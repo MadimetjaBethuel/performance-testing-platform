@@ -45,7 +45,6 @@ void app.prepare().then(() => {
 
   wss.on("connection", (socket) => {
     console.log(`➕➕ WebSocket Connection (${wss.clients.size})`);
-    console.log(`➕➕ Socket URL: ${socket.url}`);
     socket.once("close", () => {
       console.log(`➖➖ WebSocket Connection (${wss.clients.size})`);
     });
