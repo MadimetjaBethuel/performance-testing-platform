@@ -5,68 +5,32 @@ import { Badge } from "~/components/ui/badge"
 import { Button } from "~/components/ui/button"
 import { Activity, Clock, TrendingUp, CheckCircle2, XCircle, Play } from "lucide-react"
 import Link from "next/link"
+import { api } from "../trpc/react"
 
 export function DashboardOverview() {
-  const metrics = [
-    {
-      title: "Total Tests Run",
-      value: "248",
-      change: "+12%",
-      trend: "up",
-      icon: Activity,
-    },
-    {
-      title: "Avg Response Time",
-      value: "142ms",
-      change: "-8%",
-      trend: "down",
-      icon: Clock,
-    },
-    {
-      title: "Success Rate",
-      value: "99.7%",
-      change: "+0.3%",
-      trend: "up",
-      icon: CheckCircle2,
-    },
-    {
-      title: "Failed Requests",
-      value: "23",
-      change: "-15%",
-      trend: "down",
-      icon: XCircle,
-    },
-  ]
+  const { data, isLoading, isError } = api.dashboard.getOverview.useQuery()
 
-  const recentTests = [
-    {
-      id: 1,
-      name: "API Endpoint Stress Test",
-      status: "completed",
-      duration: "5m 23s",
-      requests: "15,240",
-      successRate: "99.8%",
-      timestamp: "2 hours ago",
-    },
-    {
-      id: 2,
-      name: "Homepage Load Test",
-      status: "completed",
-      duration: "3m 45s",
-      requests: "8,920",
-      successRate: "100%",
-      timestamp: "5 hours ago",
-    },
-    {
-      id: 3,
-      name: "Checkout Flow Test",
-      status: "failed",
-      duration: "2m 12s",
-      requests: "4,560",
-      successRate: "94.2%",
-      timestamp: "1 day ago",
-    },
-  ]
+
+  const metrics = data
+    ? [
+        { title: "Total Tests Run", value: String(data.metrics.totalTests), change: "", trend: "up", icon: Activity },
+        { title: "Avg Response Time", value: `${data.metrics.avgResponseTime}ms`, change: "", trend: "down", icon: Clock },
+        { title: "Success Rate", value: `${data.metrics.successRate}%`, change: "", trend: "up", icon: CheckCircle2 },
+        { title: "Failed Requests", value: String(data.metrics.failedRequests), change: "", trend: "down", icon: XCircle },
+      ]
+    : [
+        { title: "Total Tests Run", value: "—", change: "", trend: "up", icon: Activity },
+        { title: "Avg Response Time", value: "—", change: "", trend: "down", icon: Clock },
+        { title: "Success Rate", value: "—", change: "", trend: "up", icon: CheckCircle2 },
+        { title: "Failed Requests", value: "—", change: "", trend: "down", icon: XCircle },
+      ]
+
+  const recentTests = data
+    ? data.recentTests
+    : [
+        { id: 0, name: "Loading...", status: "pending", duration: "—", requests: "—", successRate: "—", createdAt: null },
+      ]
+
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
@@ -76,7 +40,7 @@ export function DashboardOverview() {
           <p className="mt-1 text-sm text-gray-600">Monitor your load testing performance</p>
         </div>
         <Link href="/test">
-          <Button className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700">
+          <Button className="bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700">
             <Play className="mr-2 h-4 w-4" />
             New Test
           </Button>
@@ -129,7 +93,8 @@ export function DashboardOverview() {
                   <div>
                     <p className="font-medium text-gray-900">{test.name}</p>
                     <p className="text-sm text-gray-600">
-                      {test.duration} • {test.requests} requests • {test.timestamp}
+                       {test.duration} • {String(test.requests).toLocaleString()} requests •{" "}
+                      {test.createdAt ? new Date(test.createdAt).toLocaleString() : "—"}
                     </p>
                   </div>
                 </div>
@@ -142,7 +107,7 @@ export function DashboardOverview() {
                         : "bg-red-100 text-red-700 hover:bg-red-200"
                     }
                   >
-                    {test.successRate}
+                    {test.successRate !== null ? `${test.successRate}%` : "—"}
                   </Badge>
                   <Link href="/results">
                     <Button

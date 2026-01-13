@@ -5,13 +5,26 @@ import { eventBind } from "../socket/events.bind";
 import { onPhaseComplete } from "../socket/phase.complete";
 import { onTestComplete } from "../socket/test.complete";
 import { db } from "../db/index";
+import { CreateWSSContextFnOptions } from "@trpc/server/adapters/ws";
+import { type CreateNextContextOptions } from "@trpc/server/adapters/next";
+import type { IncomingHttpHeaders } from "http";
 
 eventBind();
 onPhaseComplete();
 onTestComplete();
-export const createTRPCContext = async (opts: { headers: Headers }) => {
+export const createWSContext = async (opts: CreateWSSContextFnOptions) => {
+  // Try to extract HTTP headers from available fields (req or connection), fallback to empty object
+  const headers: IncomingHttpHeaders = (opts as any)?.req?.headers ?? (opts as any)?.connection?.headers ?? {};
   return {
-    ...opts,
+    headers,
+    db,
+  };
+};
+export const createTRPCContext = async (opts: CreateNextContextOptions | { headers?: any } = {}) => {
+  // Accept either the Next.js context (with req.headers) or a simple object with headers
+  const headers = (opts as any)?.req?.headers ?? (opts as any)?.headers ?? {};
+  return {
+    headers,
     db,
   };
 };

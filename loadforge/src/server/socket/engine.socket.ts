@@ -1,41 +1,49 @@
-import { time } from "console";
 import { io, Socket } from "socket.io-client";
-
+import { env } from "~/env";
 let socket: Socket | null = null;
-let isInitializing = false;
-let isBound = false;
+let isInitialized = false;
+
+const socketUrl = env.SOCKET_URL || "http://localhost:5001";
 export function getSocket(): Socket {
-  if (socket && socket.connected) {
+  // Return existing socket instance if already created
+  if (socket) {
     return socket;
   }
-  if (isInitializing) {
-    console.warn("⚠️ [SOCKET.IO] Already initializing, waiting...");
-    // Return the socket even if not connected yet
-    setTimeout(() => {}, 2000); // simple delay
-    return socket!;
-  }
-  if (!socket) {
-    isInitializing = true;
-    socket = io("http://localhost:5001", {
+
+  // Create the single socket instance only once
+  if (!isInitialized) {
+    isInitialized = true;
+    socket = io(socketUrl, {
       transports: ["websocket"],
       autoConnect: true,
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 5,
     });
+
+    // Set up event listeners only once
+    socket.on("connect", () => {
+      console.log("✅ [SOCKET.IO] Connected:", socket?.id);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("🔌 [SOCKET.IO] Disconnected:", reason);
+    });
+
+    socket.on("error", (error) => {
+      console.error("❌ [SOCKET.IO] Error:", error);
+    });
+
+    socket.on("reconnect", (attemptNumber) => {
+      console.log(
+        "🔄 [SOCKET.IO] Reconnected after",
+        attemptNumber,
+        "attempts"
+      );
+    });
   }
 
-  socket.on("connect", () => {
-    console.log("Socket connected:", socket?.id);
-    isInitializing = false;
-  });
-  socket.on("disconnect", (reason) => {
-    console.log("Socket disconnected:", reason);
-  });
-  socket.on("error", (error) => {
-    console.error("Socket error:", error);
-  });
-  return socket;
+  return socket!;
 }
 
 export function isSocketReady(): boolean {

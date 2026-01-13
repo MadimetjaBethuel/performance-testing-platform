@@ -1,41 +1,45 @@
-# Use the official Python runtime as a parent image
+# backend/Dockerfile
 FROM python:3.13-slim
 
-# Set the working directory in the container
+# Install Poetry
+
+# Configure Poetry to not create virtual environments (we're in a container)
+ENV POETRY_VERSION=1.7.1 \
+  POETRY_NO_INTERACTION=1 \
+  POETRY_VIRTUALENVS_CREATE=false \
+  POETRY_HOME='/etc/poetry' \
+  POETRY_CACHE_DIR='/var/cache/pypoetry'
+
+RUN apt-get update \
+  && apt-get install --no-install-recommends -y \
+  bash \
+  build-essential \
+  curl \
+  gettext \
+  git \
+  libpq-dev
+
+RUN curl -sSL https://install.python-poetry.org | python -
+ENV PATH="/root/.poetry/bin:root/.local/bin:$POETRY_HOME/bin:${PATH}"
+RUN poetry --version
+
+
 WORKDIR /app
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PYTHONPATH=/app
+# Copy dependency files
+COPY poetry.lock pyproject.toml ./
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependencies (without dev dependencies for production)
+RUN poetry install --no-interaction --no-ansi --no-dev
 
-# Copy requirements file
-COPY requirements.txt .
+# Copy application code
+COPY . .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install the project itself if it's a package
+RUN poetry install --no-dev --no-root --no-interaction
 
-# Copy project files
-COPY src/ ./src/
-COPY data/ ./data/
-COPY templates/ ./templates/
+# Expose port
+EXPOSE 5001
 
-# Create a non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser
-RUN chown -R appuser:appuser /app
-USER appuser
-
-# Set the default command to run the FastAPI application via uvicorn
-CMD ["uvicorn", "vail.main:app", "--host", "0.0.0.0", "--port", "8080"]
-
-# Expose port if needed for local testing (optional)
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD python -c "import vail.config; print('Health check passed')" || exit 1
+# Run the application
+CMD ["python", "src/app.py"]

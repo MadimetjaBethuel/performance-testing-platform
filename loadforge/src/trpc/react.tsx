@@ -1,3 +1,4 @@
+// src/trpc/react.tsx
 "use client"
 
 import React, { useState } from "react"
@@ -19,32 +20,46 @@ const getQueryClient = () => {
   return clientQueryClientSingleton ??= createQueryClient()
 }
 
-// --- Create a WebSocket client for subscriptions ---
-const wsClient = createWSClient({
-  url: "ws://localhost:3001"
+function getBaseUrl() {
+  if (typeof window !== "undefined") return window.location.origin
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
+  return `http://localhost:${process.env.PORT ?? 3000}`
+}
+
+function getWSUrl() {
+  if (typeof window === "undefined") return "" // No WS on server
   
-})
-const wsLinkWithTransformer = wsLink({
-  client: wsClient,
-  transformer: superjson, // <-- must match your router
-});
+  // For combined server (Option 1)
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+  return `${protocol}//${window.location.host}/api/trpc-ws`
+  
+  // For separate server (Option 2) - uncomment this instead:
+  // return process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001"
+}
 
 export function TRPCReactProvider(props: { children: React.ReactNode }) {
   const queryClient = getQueryClient()
 
-  const [trpcClient] = useState(() =>
-    api.createClient({
+  const [trpcClient] = useState(() => {
+    // Only create WebSocket client in browser
+    const wsClient = typeof window !== "undefined" 
+      ? createWSClient({ url: getWSUrl() })
+      : null
+
+    return api.createClient({
       links: [
         loggerLink({
           enabled: (op) =>
-            process.env.NODE_ENV === "development" || (op.direction === "down" && op.result instanceof Error),
+            process.env.NODE_ENV === "development" || 
+            (op.direction === "down" && op.result instanceof Error),
         }),
-        // --- split between HTTP and WS ---
         splitLink({
           condition(op) {
             return op.type === "subscription"
           },
-          true: wsLinkWithTransformer,
+          true: wsClient 
+            ? wsLink({ client: wsClient, transformer: superjson })
+            : httpBatchLink({ url: getBaseUrl() + "/api/trpc", transformer: superjson }),
           false: httpBatchLink({
             url: getBaseUrl() + "/api/trpc",
             transformer: superjson,
@@ -56,8 +71,8 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
           }),
         }),
       ],
-    }),
-  )
+    })
+  })
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -66,10 +81,4 @@ export function TRPCReactProvider(props: { children: React.ReactNode }) {
       </api.Provider>
     </QueryClientProvider>
   )
-}
-
-function getBaseUrl() {
-  if (typeof window !== "undefined") return window.location.origin
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`
-  return `http://localhost:${process.env.PORT ?? 3000}`
 }

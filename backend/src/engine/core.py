@@ -39,7 +39,7 @@ def run_performance_test(urls, concurrency_steps, phase_length, request_timeout,
             "total_requests": len(all_results),
             "success_count": len(overall_metrics["success_times"]),
             "error_count": len(overall_metrics["error_results"]),
-            "success_rate_percent": round((len(overall_metrics["success_times"])/len(all_results))*100, 2),
+            "success_rate_percent": round((len(overall_metrics["success_times"])/len(all_results))*100, 2) if all_results else None,
             "avg_time": sum(overall_metrics["success_times"])/len(overall_metrics["success_times"]) if overall_metrics["success_times"] else None,
             "percentiles": overall_metrics["percentiles"],
             "phase_summaries": phase_summaries,
@@ -58,11 +58,16 @@ def run_performance_test(urls, concurrency_steps, phase_length, request_timeout,
         return summary, detailed
 
     except Exception as e:
-
         print(f"Error during performance test: {e}")
         traceback.print_exc()
         summary = {
             "timestamp": datetime.utcnow().isoformat(),
             "error": str(e)
         }
-    return summary, detailed
+        detailed = {
+            "summary": summary,
+            "all_requests": [],
+            "phase_details": [],
+            "per_url_results": {}
+        }
+        return summary, detailed

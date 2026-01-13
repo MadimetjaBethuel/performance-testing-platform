@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "next dev",
     "dev:ws": "tsx ./src/trpc/client.ts",
-    "dev:all": "concurrently \"npm run dev\" \"npm run dev:ws\"",
+    "dev:all": "concurrently \"pnpm run dev\" \"pnpm run dev:ws\"",
     "build": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production tsx ./src/trpc/client.prod.ts",
     "lint": "eslint .",
     "migrate:generate": "drizzle-kit generate",
     "migrate:apply": "drizzle-kit migrate",

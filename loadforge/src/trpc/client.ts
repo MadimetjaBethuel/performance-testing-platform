@@ -2,14 +2,14 @@ import "dotenv/config";
 import { applyWSSHandler } from "@trpc/server/adapters/ws";
 import { WebSocketServer } from "ws";
 import { appRouter } from "../server/api/root";
-import { createTRPCContext } from "../server/api/trpc";
+import {  createWSContext } from "../server/api/trpc";
 
 const wss = new WebSocketServer({ port: 3001 });
 
 const handler = applyWSSHandler({
   wss,
   router: appRouter,
-  createContext: createTRPCContext,
+  createContext: createWSContext,
   keepAlive: {
     enabled: true,
     pingMs: 30000,
