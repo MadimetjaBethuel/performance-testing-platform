@@ -10,8 +10,8 @@ const DEFAULT_USER_ID = "default-user-001";
 function secondsToMs(seconds: number): number {
   return Math.round(seconds * 1000);
 }
-
 export const onTestComplete = () => {
+ 
   return subscribe(async (event) => {
     if (event.type !== "test_completed") return;
 
@@ -148,7 +148,7 @@ export const onTestComplete = () => {
         `✅ [DB] Test result saved successfully for test_id: ${testData.test_id}`
       );
     } catch (error: any) {
-      console.error("❌ [DB] Failed to save test completion data:", error);
+      console.error("❌ [DB] Failed to save test completion data:",);
       console.error("Error details:", {
         message: error?.message,
         code: error?.code,
@@ -164,4 +164,5 @@ export const onTestComplete = () => {
       }
     }
   });
+  console.log("✅ [DB] Test complete handler subscribed");
 };

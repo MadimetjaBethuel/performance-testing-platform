@@ -6,8 +6,10 @@ import { eq, and } from "drizzle-orm";
 
 const DEFAULT_USER_ID = "default-user-001";
 const processedPhases = new Set<string>();
+
 export const onPhaseComplete = () => {
-  return subscribe(async (event) => {
+  // Prevent duplicate subscription
+  return  subscribe(async (event) => {
     if (event.type !== "phase_complete") return;
 
     const phaseData = event.data;
@@ -67,7 +69,7 @@ export const onPhaseComplete = () => {
         processedPhases.add(phaseKey);
         return;
       }
-      console.error("❌ [DB] Failed to save phase data:", error);
+      console.error("❌ [DB] Failed to save phase data:",);
       console.error("Error details:", {
         message: error?.message,
         code: error?.code,
@@ -75,4 +77,5 @@ export const onPhaseComplete = () => {
       });
     }
   });
+  console.log("✅ [DB] Phase complete handler subscribed");
 };

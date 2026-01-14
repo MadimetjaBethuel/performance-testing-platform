@@ -17,7 +17,7 @@ export function getSocket(): Socket {
       transports: ["websocket"],
       autoConnect: true,
       reconnection: true,
-      reconnectionDelay: 1000,
+      reconnectionDelay: 500,
       reconnectionAttempts: 5,
     });
 

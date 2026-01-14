@@ -29,7 +29,6 @@ export const testsRouter = createTRPCRouter({
           "Socket not connected. PLease ensure the backend is running ."
         );
       }
-      console.log("Starting test with input:", input);
       console.log(
         "🔌 [MUTATION] Socket ID:",
         socket.id,
@@ -79,6 +78,7 @@ export const testsRouter = createTRPCRouter({
     const queue: any[] = [];
 
     const unsubscribe = subscribe((event) => {
+      console.log("🔥 [TRPC] Eventbus callback triggered with event:", event);
       // If someone is waiting, resolve immediately
       if (pendingResolve) {
         console.log("📤 [TRPC] Resolving pending promise with event");

@@ -38,14 +38,13 @@ void app.prepare().then(() => {
     createContext: createWSContext,
     keepAlive: {
       enabled: true,
-      pingMs: 3000000,
-      pongWaitMs: 5000000,
+      pingMs: 30000,
+      pongWaitMs: 50000,
     },
   });
 
   wss.on("connection", (socket) => {
     console.log(`➕➕ WebSocket Connection (${wss.clients.size})`);
-    console.log(`➕➕ Socket URL: ${socket.url}`);
     socket.once("close", () => {
       console.log(`➖➖ WebSocket Connection (${wss.clients.size})`);
     });

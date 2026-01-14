@@ -1,127 +1,181 @@
-# api_socket_single_client.py
-from flask import Flask
-from flask_socketio import SocketIO, emit
+import os
+import asyncio
+import socketio
+
+from flask import Flask, jsonify
+from asgiref.wsgi import WsgiToAsgi
+
 from engine.core import run_performance_test
 from url_loader import validate_urls, load_urls_from_json
 from config import CONCURRENCY_STEPS, PHASE_LENGTH, REQUEST_TIMEOUT
-import os
 
-app = Flask(__name__)
+# -------------------------------------------------
+# Flask (HTTP / Health / Metadata)
+# -------------------------------------------------
 
-# Get port from environment (App Runner provides PORT env var)
-port = int(os.environ.get('PORT', 5001))
+flask_app = Flask(__name__)
 
-# Configure SocketIO with proper async mode and CORS
-socketio = SocketIO(
-    app,
-    cors_allowed_origins="*",  # In production, use your Next.js domain
-    async_mode='eventlet',
-    logger=True,
-    engineio_logger=True,
-    ping_timeout=60,
-    ping_interval=25
+
+@flask_app.route("/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "healthy"}), 200
+
+
+@flask_app.route("/", methods=["GET"])
+def root():
+    return jsonify({
+        "status": "running",
+        "service": "performance-test-api"
+    }), 200
+
+
+# -------------------------------------------------
+# Socket.IO (ASGI / WebSocket)
+# -------------------------------------------------
+
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    cors_allowed_origins="*"
 )
 
-# ------------------------
-# HTTP Endpoint: Health Check
-# ------------------------
+# Wrap Flask WSGI app so it can live inside ASGI
+flask_asgi_app = WsgiToAsgi(flask_app)
+
+# Final ASGI application
+asgi_app = socketio.ASGIApp(
+    sio,
+    other_asgi_app=flask_asgi_app
+)
+
+# -------------------------------------------------
+# Socket.IO Events
+# -------------------------------------------------
 
 
-@app.route("/health", methods=["GET"])
-def health_check():
-    return {"status": "healthy"}, 200
+@sio.event
+async def connect(sid, environ):
+    print(f"[SOCKET] Client connected: {sid}")
+    await sio.emit(
+        "connected",
+        {"message": "WebSocket connected"},
+    )
 
 
-@app.route("/", methods=["GET"])
-def root():
-    return {"status": "running", "service": "performance-test-api"}, 200
+@sio.event
+async def disconnect(sid):
+    print(f"[SOCKET] Client disconnected: {sid}")
 
 
-# ------------------------
-# WebSocket: Client connects
-# ------------------------
-@socketio.on("connect")
-def handle_connect():
-    print("Client connected")
-    emit("connected", {"message": "WebSocket connected"})
-
-
-@socketio.on("disconnect")
-def handle_disconnect():
-    print("Client disconnected")
-
-
-# ------------------------
-# WebSocket: Start performance test
-# ------------------------
-@socketio.on("start_test")
-def handle_start_test(data):
+@sio.event
+async def start_test(sid, data):
     """
-    Stateless performance test.
+    Starts a stateless performance test in the background.
     Emits:
-        - "phase_complete" after each phase
-        - "test_completed" after all phases
+      - test_started
+      - phase_complete (per phase)
+      - test_completed
     """
     try:
-        # ------------------------
-        # Load & validate URLs
-        # ------------------------
-        urls = data.get("urls", []) or load_urls_from_json()
+        urls = data.get("urls") or load_urls_from_json()
         urls = validate_urls(urls)
+
         if not urls:
-            emit("error", {"error": "No valid URLs provided"})
+            await sio.emit(
+                "error",
+                {"error": "No valid URLs provided"},
+            )
+            return
+
+        test_id = data.get("test_id")
+        if not test_id:
+            await sio.emit(
+                "error",
+                {"error": "test_id is required"},
+            )
             return
 
         concurrency_steps = data.get("concurrency", CONCURRENCY_STEPS)
         phase_length = data.get("phase_length", PHASE_LENGTH)
         request_timeout = data.get("request_timeout", REQUEST_TIMEOUT)
-        test_id = data.get("test_id")
 
-        if not test_id:
-            emit("error", {"error": "test_id is required to start the test"})
-            return
+        asyncio.create_task(
+            run_test_in_background(
+                sid=sid,
+                test_id=test_id,
+                urls=urls,
+                concurrency_steps=concurrency_steps,
+                phase_length=phase_length,
+                request_timeout=request_timeout
+            )
+        )
 
+        await sio.emit(
+            "test_started",
+            {"message": "Test started", "test_id": test_id},
+        )
+
+        print(f"[TEST] Started test {test_id} for client {sid}")
+
+    except Exception as exc:
+        print(f"[ERROR] start_test failed: {exc}")
+        await sio.emit(
+            "error",
+            {"error": str(exc)},
+        )
+
+
+# -------------------------------------------------
+# Background Test Runner
+# -------------------------------------------------
+
+async def run_test_in_background(
+    sid,
+    test_id,
+    urls,
+    concurrency_steps,
+    phase_length,
+    request_timeout
+):
+    try:
         total_phases = len(concurrency_steps)
         phase_summaries = []
 
-        socketio.emit("test_started", {
-                      "message": "Test started", "test_id": test_id})
-        print(f"Starting performance test {test_id}...")
+        print(f"[TEST] Running test {test_id}")
 
-        # ------------------------
-        # Run phases synchronously (single client)
-        # ------------------------
-        for idx, concurrency in enumerate(concurrency_steps):
-            # Run one phase using the stateless engine
-            phase_results_summary, detailed = run_performance_test(
+        for index, concurrency in enumerate(concurrency_steps, start=1):
+            summary, detailed = await asyncio.to_thread(
+                run_performance_test,
                 urls=urls,
-                concurrency_steps=[concurrency],
+                concurrency_steps=[
+                    concurrency],
                 phase_length=phase_length,
                 request_timeout=request_timeout,
                 save_to_s3=False,
                 send_email=False
             )
 
-            requests_for_phase = len(detailed.get("all_requests", []))
+            requests_count = len(detailed.get("all_requests", []))
+
             phase_summary = {
-                "phase": idx + 1,
+                "phase": index,
                 "test_id": test_id,
                 "total_phases": total_phases,
                 "concurrency": concurrency,
-                "requests": requests_for_phase,
-                "success_count": phase_results_summary.get("success_count", 0),
-                "error_count": phase_results_summary.get("error_count", 0),
-                "percentiles": phase_results_summary.get("percentiles", {}),
+                "requests": requests_count,
+                "success_count": summary.get("success_count", 0),
+                "error_count": summary.get("error_count", 0),
+                "percentiles": summary.get("percentiles", {}),
             }
+
             phase_summaries.append(phase_summary)
 
-            # Emit phase completion event to the client
-            socketio.emit("phase_complete", phase_summary)
-            print(f'Phase {idx + 1} completed')
+            await sio.emit(
+                "phase_complete",
+                phase_summary,
+            )
 
-        # ------------------------
-        # Emit final test summary
-        # ------------------------
+            print(f"[TEST] Phase {index}/{total_phases} complete")
+
         final_summary = {
             "test_id": test_id,
             "phase_summaries": phase_summaries,
@@ -130,23 +184,34 @@ def handle_start_test(data):
             "error_count": sum(p["error_count"] for p in phase_summaries),
         }
 
-        socketio.emit("test_completed", final_summary)
-        print(f'Test {test_id} completed')
+        await sio.emit(
+            "test_completed",
+            final_summary,
+        )
 
-    except Exception as e:
-        print(f"Error during test: {str(e)}")
-        emit("error", {"error": str(e)})
+        print(f"[TEST] Test {test_id} completed")
+
+    except Exception as exc:
+        print(f"[ERROR] Test {test_id} failed: {exc}")
+        await sio.emit(
+            "error",
+            {"error": str(exc)},
+        )
 
 
-# ------------------------
-# Run Flask-SocketIO server
-# ------------------------
+# -------------------------------------------------
+# Local Entry Point (Development Only)
+# -------------------------------------------------
+
 if __name__ == "__main__":
-    print(f"Starting server on port {port}")
-    socketio.run(
-        app,
+    import uvicorn
+
+    port = int(os.environ.get("PORT", 5001))
+
+    uvicorn.run(
+        "app:asgi_app",
         host="0.0.0.0",
         port=port,
-        debug=False,
-        use_reloader=False
+        ws="websockets",
+        log_level="info"
     )
