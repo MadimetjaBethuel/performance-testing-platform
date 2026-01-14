@@ -12,12 +12,12 @@ export function DashboardNav() {
     { href: "/", label: "Dashboard", icon: Activity },
     { href: "/test", label: "New Test", icon: Zap },
     { href: "/live", label: "Live Tests", icon: Radio },
-    { href: "/results", label: "Results", icon: BarChart3 },
+    // { href: "/results", label: "Results", icon: BarChart3 },
     { href: "/settings", label: "Settings", icon: Settings },
   ]
 
   return (
-    <nav className="border-b bg-white " >
+    <nav className="sticky top-0 z-50 border-b bg-white " >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-linear-to-br from-purple-600 to-indigo-600">

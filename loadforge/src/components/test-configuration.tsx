@@ -45,6 +45,7 @@ export function TestConfiguration() {
   const [isTestRunning, setIsTestRunning] = useState(false);
   const [currentPhase, setCurrentPhase] = useState<TestProgress | null>(null);
   const [testStatus, setTestStatus] = useState<string>("");
+  const [testName, setTestName] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   api.test.onProgress.useSubscription(undefined, {
@@ -110,6 +111,10 @@ export function TestConfiguration() {
       setError("Please add at least one URL");
       return;
     }
+     if (!testName.trim()) {
+      setError("Please provide a name for the test.");
+      return;
+    }
     const concurrencyArray = concurrency
       .split(",")
       .map((c) => Number.parseInt(c.trim()))
@@ -139,6 +144,7 @@ export function TestConfiguration() {
     const totalDuration = rampDurationNum + holdDurationNum + rampDurationNum;
 
     start.mutate({
+      name: testName,
       urls: validUrls,
       concurrency: concurrencyArray,
       ramp_up_time: rampDurationNum,
@@ -151,6 +157,7 @@ export function TestConfiguration() {
 
   const exportConfig = () => {
     const config = {
+      name: testName,
       urls: urls.map((u) => u.url).filter((u) => u),
       concurrency: concurrency.split(",").map((c) => Number.parseInt(c.trim())),
       rampDuration: Number.parseInt(rampDuration),
@@ -173,6 +180,7 @@ export function TestConfiguration() {
       reader.onload = (event) => {
         try {
           const config = JSON.parse(event.target?.result as string);
+          setTestName(config.name || "");
           setUrls(
             config.urls.map((url: string, i: number) => ({
               id: Date.now() + i,
@@ -262,6 +270,29 @@ export function TestConfiguration() {
       )}
 
       <div className="space-y-6">
+        <Card className="border-gray-200">
+          <CardHeader>
+            <CardTitle className="text-gray-900">Test Name</CardTitle>
+            <CardDescription className="text-gray-600">
+              Give your load test a descriptive name
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div>
+              <Label htmlFor="test-name" className="text-gray-700">
+                Name
+              </Label>
+              <Input
+                id="test-name"
+                placeholder="My API Performance Test"
+                value={testName}
+                onChange={(e) => setTestName(e.target.value)}
+                className="border-gray-300"
+                disabled={isTestRunning}
+              />
+            </div>
+          </CardContent>
+        </Card>
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-gray-900">Test URLs</CardTitle>

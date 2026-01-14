@@ -4,14 +4,34 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Badge } from "~/components/ui/badge"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { CheckCircle2, Clock, TrendingUp, AlertCircle } from "lucide-react"
+interface TestResultsProps {
+  results: {
+    testId: string | null;
+    totalRequests: number;
+    successfulRequests: number;
+    failedRequests: number;
+    avgResponseTime: number;
+    minResponseTime: number;
+    maxResponseTime: number;
+    p50ResponseTime: number;
+    p95ResponseTime: number;
+    p99ResponseTime: number;
+    requestsPerSecond: number;
+    urlBreakdown: Array<{
+      url: string;
+      requests: number;
+      avgResponseTime: number;
+      successRate: number;
+    }>;
+    phaseMetrics: {
+      rampUp: { avgResponseTime: number; successRate: number; };
+      steady: { avgResponseTime: number; successRate: number; };
+      rampDown: { avgResponseTime: number; successRate: number; };
+    };
+  };
+}
+export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
 
-export function TestResults() {
-  const performanceData = [
-    { phase: "10 users", avgTime: 120, p95: 180, p99: 250 },
-    { phase: "20 users", avgTime: 145, p95: 210, p99: 290 },
-    { phase: "30 users", avgTime: 168, p95: 245, p99: 335 },
-    { phase: "40 users", avgTime: 195, p95: 280, p99: 385 },
-  ]
 
   const urlBreakdown = [
     { url: "/api/users", requests: 4820, avgTime: 142, success: 100 },
@@ -19,29 +39,43 @@ export function TestResults() {
     { url: "/api/orders", requests: 2890, avgTime: 195, success: 98.5 },
     { url: "/api/checkout", requests: 1560, avgTime: 234, success: 97.2 },
   ]
+  const overallSuccessRate = results.totalRequests
+    ? (results.successfulRequests / results.totalRequests) * 100
+    : 0;
+  const isSuccess = overallSuccessRate >= 99; // Define what constitutes "success"
+
+  const overviewMetrics = [
+    { title: "Total Requests", value: results.totalRequests.toLocaleString(), icon: TrendingUp, color: "text-purple-600" },
+    { title: "Avg Response Time", value: `${results.avgResponseTime}ms`, icon: Clock, color: "text-blue-600" },
+    { title: "Success Rate", value: `${overallSuccessRate.toFixed(1)}%`, icon: CheckCircle2, color: "text-green-600" },
+    { title: "Errors", value: results.failedRequests.toLocaleString(), icon: AlertCircle, color: "text-red-600" },
+  ];
+
+  // Data for the "Average Response Times by Phase" chart
+  const performanceData = [
+    { phase: "Ramp Up", avgTime: results.phaseMetrics.rampUp.avgResponseTime },
+    { phase: "Steady", avgTime: results.phaseMetrics.steady.avgResponseTime },
+    { phase: "Ramp Down", avgTime: results.phaseMetrics.rampDown.avgResponseTime },
+  ];
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-8">
+     <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Test Results</h1>
-            <p className="mt-1 text-sm text-gray-600">API Endpoint Stress Test • Completed 2 hours ago</p>
+            <h1 className="text-3xl font-bold text-gray-900">Test Results for Test ID: {results.testId || 'N/A'}</h1>
+            {/* If test name and completion time were available from the API, you'd use them here */}
+            <p className="mt-1 text-sm text-gray-600">Overview of performance metrics</p>
           </div>
-          <Badge className="bg-green-100 text-green-700 hover:bg-green-200">
-            <CheckCircle2 className="mr-1 h-3 w-3" />
-            Success
+          <Badge className={isSuccess ? "bg-green-100 text-green-700 hover:bg-green-200" : "bg-red-100 text-red-700 hover:bg-red-200"}>
+            {isSuccess ? <CheckCircle2 className="mr-1 h-3 w-3" /> : <AlertCircle className="mr-1 h-3 w-3" />}
+            {isSuccess ? "Success" : "Failed"}
           </Badge>
         </div>
       </div>
 
-      <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[
-          { title: "Total Requests", value: "15,240", icon: TrendingUp, color: "text-purple-600" },
-          { title: "Avg Response Time", value: "168ms", icon: Clock, color: "text-blue-600" },
-          { title: "Success Rate", value: "99.8%", icon: CheckCircle2, color: "text-green-600" },
-          { title: "Errors", value: "28", icon: AlertCircle, color: "text-red-600" },
-        ].map((metric) => {
+     <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {overviewMetrics.map((metric) => {
           const Icon = metric.icon
           return (
             <Card key={metric.title} className="border-gray-200">
@@ -57,11 +91,11 @@ export function TestResults() {
         })}
       </div>
 
-      <div className="mb-6">
+       <div className="mb-6">
         <Card className="border-gray-200">
           <CardHeader>
-            <CardTitle className="text-gray-900">Response Times by Phase</CardTitle>
-            <CardDescription className="text-gray-600">Performance metrics across concurrency levels</CardDescription>
+            <CardTitle className="text-gray-900">Average Response Times by Phase</CardTitle>
+            <CardDescription className="text-gray-600">Performance metrics across test phases</CardDescription>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -74,14 +108,13 @@ export function TestResults() {
                 />
                 <Legend />
                 <Line type="monotone" dataKey="avgTime" stroke="#9333ea" name="Average" strokeWidth={2} />
-                <Line type="monotone" dataKey="p95" stroke="#6366f1" name="P95" strokeWidth={2} />
-                <Line type="monotone" dataKey="p99" stroke="#ec4899" name="P99" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
       </div>
 
+    
       <Card className="border-gray-200">
         <CardHeader>
           <CardTitle className="text-gray-900">Performance by URL</CardTitle>
@@ -91,33 +124,38 @@ export function TestResults() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {urlBreakdown.map((url) => (
-              <div key={url.url} className="rounded-lg border border-gray-200 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <code className="text-sm font-medium text-gray-900">{url.url}</code>
-                  <Badge
-                    variant={url.success >= 99 ? "default" : "destructive"}
-                    className={
-                      url.success >= 99
-                        ? "bg-green-100 text-green-700 hover:bg-green-200"
-                        : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
-                    }
-                  >
-                    {url.success}% success
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Requests:</span>
-                    <span className="ml-2 font-medium text-gray-900">{url.requests.toLocaleString()}</span>
+            {/* Check if urlBreakdown is an object before attempting to iterate */}
+            {typeof results.urlBreakdown === 'object' && results.urlBreakdown !== null ? (
+              Object.entries(results.urlBreakdown).map(([url, urlMetric]) => ( // Iterate over entries
+                <div key={url} className="rounded-lg border border-gray-200 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <code className="text-sm font-medium text-gray-900">{url}</code> {/* Use 'url' as the key */}
+                    <Badge
+                      variant={urlMetric.successRate >= 99 ? "default" : "destructive"}
+                      className={
+                        urlMetric.successRate >= 99
+                          ? "bg-green-100 text-green-700 hover:bg-green-200"
+                          : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
+                      }
+                    >
+                      {urlMetric.successRate.toFixed(1)}% success
+                    </Badge>
                   </div>
-                  <div>
-                    <span className="text-gray-600">Avg Time:</span>
-                    <span className="ml-2 font-medium text-gray-900">{url.avgTime}ms</span>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Requests:</span>
+                      <span className="ml-2 font-medium text-gray-900">{urlMetric.requests.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Avg Time:</span>
+                      <span className="ml-2 font-medium text-gray-900">{urlMetric.avgResponseTime}ms</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-gray-500">No URL breakdown data available or format is incorrect.</p>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -109,7 +109,7 @@ export function DashboardOverview() {
                   >
                     {test.successRate !== null ? `${test.successRate}%` : "—"}
                   </Badge>
-                  <Link href="/results">
+                  <Link href={`/results/${test.id}`}>
                     <Button
                       variant="ghost"
                       size="sm"

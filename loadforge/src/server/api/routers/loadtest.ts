@@ -1,5 +1,8 @@
+// loadforge/src/server/api/routers/loadtest.ts
 import { z } from "zod"
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc"
+import { testResults, completeTests } from "~/server/db/schema" // Import your schema tables
+import { eq } from "drizzle-orm" // Import eq for equality comparisons
 
 export const loadTestRouter = createTRPCRouter({
   // Get all load tests
@@ -62,39 +65,35 @@ export const loadTestRouter = createTRPCRouter({
     }),
 
   // Get test results
-  getResults: publicProcedure.input(z.object({ testId: z.number() })).query(async ({ input }) => {
-    // TODO: Replace with actual database query
-    return {
-      testId: input.testId,
-      totalRequests: 45000,
-      successfulRequests: 44640,
-      failedRequests: 360,
-      avgResponseTime: 245,
-      minResponseTime: 120,
-      maxResponseTime: 1850,
-      p50ResponseTime: 230,
-      p95ResponseTime: 520,
-      p99ResponseTime: 890,
-      requestsPerSecond: 150,
-      urlBreakdown: [
-        {
-          url: "https://example.com",
-          requests: 30000,
-          avgResponseTime: 220,
-          successRate: 99.5,
-        },
-        {
-          url: "https://example.com/api",
-          requests: 15000,
-          avgResponseTime: 280,
-          successRate: 98.8,
-        },
-      ],
-      phaseMetrics: {
-        rampUp: { avgResponseTime: 210, successRate: 99.8 },
-        steady: { avgResponseTime: 245, successRate: 99.1 },
-        rampDown: { avgResponseTime: 225, successRate: 99.6 },
-      },
+  getResults: publicProcedure.input(z.object({ testId: z.string() })).query(async ({ ctx, input }) => {
+    // We expect testId to be a string, matching the varchar type in the schema
+    const result = await ctx.db.query.testResults.findFirst({
+      where: eq(testResults.test_id, input.testId),
+    });
+
+    if (!result) {
+      // Handle case where no results are found for the given testId
+      throw new Error("Test results not found for the given test ID.");
     }
+
+    // Since our database schema fields match the frontend interface,
+    // we can directly return the result.
+    // Drizzle will handle the mapping from snake_case (DB) to camelCase (JS) if configured,
+    // otherwise, you might need to manually map. Assuming direct mapping for now.
+    return {
+      testId: result.test_id,
+      totalRequests: result.total_requests,
+      successfulRequests: result.successful_requests,
+      failedRequests: result.failed_requests,
+      avgResponseTime: result.avg_response_time,
+      minResponseTime: result.min_response_time,
+      maxResponseTime: result.max_response_time,
+      p50ResponseTime: result.p50_response_time,
+      p95ResponseTime: result.p95_response_time,
+      p99ResponseTime: result.p99_response_time,
+      requestsPerSecond: result.requests_per_second,
+      urlBreakdown: result.url_breakdown as any, // Cast to any or define a more specific type if necessary
+      phaseMetrics: result.phase_metrics as any, // Cast to any or define a more specific type if necessary
+    };
   }),
 })
