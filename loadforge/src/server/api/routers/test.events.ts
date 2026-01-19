@@ -5,9 +5,63 @@ import { createTRPCRouter, publicProcedure } from "../trpc";
 import { z } from "zod";
 import { completeTests, testPhases, testResults } from "../../db/schema";
 import { v4 as uuidv4 } from "uuid";
+import { eq, inArray } from "drizzle-orm";
 const DEFAULT_USER_ID = "default-user-001";
 
 export const testsRouter = createTRPCRouter({
+  getRunningTests: publicProcedure.query(async ({ ctx }) => {
+    const tests = await ctx.db
+      .select({
+        id: completeTests.id,
+        name: completeTests.name,
+        status: completeTests.status,
+        created_at: completeTests.created_at,
+      })
+      .from(completeTests)
+      // drizzle-orm doesn't have a strict string literal type for varchar here,
+      // so we keep it as a plain comparison.
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      .where(eq(completeTests.status, "running"))
+      .limit(50);
+
+    return tests.map((t) => ({
+      id: t.id,
+      name: t.name,
+      status: t.status,
+      createdAt: t.created_at?.toISOString?.() ?? null,
+    }));
+  }),
+  getLatestPhases: publicProcedure
+    .input(z.object({ testIds: z.array(z.string()) }))
+    .query(async ({ ctx, input }) => {
+      if (input.testIds.length === 0) return [];
+
+      // Get all phases for the requested tests
+      const phases = await ctx.db
+        .select()
+        .from(testPhases)
+        .where(inArray(testPhases.test_id, input.testIds));
+
+      // Get the latest phase for each test
+      const latestPhases = new Map<string, typeof testPhases.$inferSelect>();
+      for (const phase of phases) {
+        const existing = latestPhases.get(phase.test_id);
+        if (!existing || phase.phase_number > existing.phase_number) {
+          latestPhases.set(phase.test_id, phase);
+        }
+      }
+
+      return Array.from(latestPhases.values()).map((phase) => ({
+        test_id: phase.test_id,
+        phase: phase.phase_number,
+        total_phases: phase.total_phases,
+        concurrency: phase.concurrency,
+        requests: phase.requests,
+        success_count: phase.success_count,
+        error_count: phase.error_count,
+        percentiles: phase.percentile as { p50: number; p95: number; p99: number },
+      }));
+    }),
   startTest: publicProcedure
     .input(
       z.object({
@@ -78,7 +132,6 @@ export const testsRouter = createTRPCRouter({
     const queue: any[] = [];
 
     const unsubscribe = subscribe((event) => {
-      console.log("🔥 [TRPC] Eventbus callback triggered with event:", event);
       // If someone is waiting, resolve immediately
       if (pendingResolve) {
         console.log("📤 [TRPC] Resolving pending promise with event");
@@ -133,4 +186,18 @@ export const testsRouter = createTRPCRouter({
       console.log("🔌 [TRPC] Unsubscribed from event bus");
     }
   }),
+  getTestName: publicProcedure
+    .input(z.object({ testId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const test = await ctx.db
+        .select({
+          id: completeTests.id,
+          name: completeTests.name,
+          status: completeTests.status,
+        })
+        .from(completeTests)
+        .where(eq(completeTests.id, input.testId))
+        .limit(1);
+      return test[0] ? { name: test[0].name, status: test[0].status } : null;
+    }),
 });

@@ -164,5 +164,4 @@ export const onTestComplete = () => {
       }
     }
   });
-  console.log("✅ [DB] Test complete handler subscribed");
 };

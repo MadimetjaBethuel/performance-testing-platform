@@ -3,6 +3,8 @@
 import type React from "react";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { TestProgress, TestEvent } from "~/hooks/useLiveTestTracking";
 import {
   Card,
   CardContent,
@@ -16,25 +18,6 @@ import { Label } from "~/components/ui/label";
 import { Plus, X, Upload, Download, Play, Loader2 } from "lucide-react";
 import { api } from "~/trpc/react";
 
-interface TestProgress {
-  phase: number;
-  total_phases: number;
-  concurrency: number;
-  requests: number;
-  success_count: number;
-  error_count: number;
-  percentiles: { p50: number; p95: number; p99: number };
-}
-
-interface TestEvent {
-  type:
-    | "test_started"
-    | "phase_complete"
-    | "test_completed"
-    | "error"
-    | "connected";
-  data: any;
-}
 
 export function TestConfiguration() {
   const [urls, setUrls] = useState([{ id: 1, url: "" }]);
@@ -42,11 +25,10 @@ export function TestConfiguration() {
   const [rampDuration, setRampDuration] = useState("60");
   const [holdDuration, setHoldDuration] = useState("120");
   const [isConnected, setIsConnected] = useState(false);
-  const [isTestRunning, setIsTestRunning] = useState(false);
-  const [currentPhase, setCurrentPhase] = useState<TestProgress | null>(null);
-  const [testStatus, setTestStatus] = useState<string>("");
   const [testName, setTestName] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const router = useRouter();
 
   api.test.onProgress.useSubscription(undefined, {
     onStarted() {
@@ -54,23 +36,8 @@ export function TestConfiguration() {
       setIsConnected(true);
     },
     onData(trackedData) {
-      const data = trackedData.data as TestEvent;
-
-      if (data.type === "phase_complete") {
-        setCurrentPhase(data.data);
-        setTestStatus(
-          `Phase ${data.data.phase} of ${data.data.total_phases} completed`
-        );
-      } else if (data.type === "test_completed") {
-        setIsTestRunning(false);
-        setTestStatus("Test completed");
-        setCurrentPhase(null);
-      } else if (data.type === "error") {
-        setError(data.data.error || "An unknown error occurred");
-        setIsTestRunning(false);
-        setTestStatus("Test failed");
-        setCurrentPhase(null);
-      }
+      // We only care about connection status here
+      setIsConnected(true);
     },
     onError(err) {
       console.error("❌ [CLIENT] Subscription error:", err);
@@ -78,18 +45,14 @@ export function TestConfiguration() {
       setError(err.message || "An unknown error occurred");
     },
   });
+
   const start = api.test.startTest.useMutation({
     onSuccess() {
-      setIsTestRunning(true);
-      setTestStatus("Test started");
-      setCurrentPhase(null);
       setError(null);
+      router.push("/live"); // Navigate to live tracking page on test start
     },
     onError(err) {
       setError(err.message || "An unknown error occurred");
-      setIsTestRunning(false);
-      setTestStatus("");
-      setCurrentPhase(null);
     },
   });
 
@@ -137,9 +100,6 @@ export function TestConfiguration() {
     }
 
     setError(null);
-    setIsTestRunning(true);
-    setTestStatus("Test started");
-    setCurrentPhase(null);
 
     const totalDuration = rampDurationNum + holdDurationNum + rampDurationNum;
 
@@ -233,41 +193,6 @@ export function TestConfiguration() {
           {error}
         </div>
       )}
-      {/* Test Status */}
-      {testStatus && (
-        <Card className="mb-6 border-purple-200 bg-purple-50">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-semibold text-purple-900">{testStatus}</p>
-                {currentPhase && (
-                  <div className="mt-2 space-y-1 text-sm text-purple-700">
-                    <p>
-                      Phase {currentPhase.phase}/{currentPhase.total_phases} -
-                      Concurrency: {currentPhase.concurrency}
-                    </p>
-                    <p>
-                      Requests: {currentPhase.requests} | Success:{" "}
-                      {currentPhase.success_count} | Errors:{" "}
-                      {currentPhase.error_count}
-                    </p>
-                    {currentPhase.percentiles && (
-                      <p className="text-xs">
-                        P50: {currentPhase.percentiles.p50}ms | P95:{" "}
-                        {currentPhase.percentiles.p95}ms | P99:{" "}
-                        {currentPhase.percentiles.p99}ms
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-              {isTestRunning && (
-                <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       <div className="space-y-6">
         <Card className="border-gray-200">
@@ -288,7 +213,7 @@ export function TestConfiguration() {
                 value={testName}
                 onChange={(e) => setTestName(e.target.value)}
                 className="border-gray-300"
-                disabled={isTestRunning}
+                disabled={start.isPending}
               />
             </div>
           </CardContent>
@@ -313,7 +238,7 @@ export function TestConfiguration() {
                     value={urlObj.url}
                     onChange={(e) => updateUrl(urlObj.id, e.target.value)}
                     className="border-gray-300"
-                    disabled={isTestRunning}
+                    disabled={start.isPending}
                   />
                 </div>
                 {urls.length > 1 && (
@@ -322,7 +247,7 @@ export function TestConfiguration() {
                     size="icon"
                     onClick={() => removeUrl(urlObj.id)}
                     className="mt-7 text-red-600 hover:bg-red-50 hover:text-red-700"
-                    disabled={isTestRunning}
+                    disabled={start.isPending}
                   >
                     <X className="h-4 w-4" />
                   </Button>
@@ -334,7 +259,7 @@ export function TestConfiguration() {
                 onClick={addUrl}
                 variant="outline"
                 className="border-purple-300 text-purple-700 hover:bg-purple-50 bg-transparent"
-                disabled={isTestRunning}
+                disabled={start.isPending}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add URL
@@ -345,13 +270,13 @@ export function TestConfiguration() {
                   accept=".json"
                   onChange={importConfig}
                   className="hidden"
-                  disabled={isTestRunning}
+                  disabled={start.isPending}
                 />
                 <Button
                   variant="outline"
                   className="border-gray-300 bg-transparent"
                   asChild
-                  disabled={isTestRunning}
+                  disabled={start.isPending}
                 >
                   <span>
                     <Upload className="mr-2 h-4 w-4" />
@@ -363,7 +288,7 @@ export function TestConfiguration() {
                 onClick={exportConfig}
                 variant="outline"
                 className="border-gray-300 bg-transparent"
-                disabled={isTestRunning}
+                disabled={start.isPending}
               >
                 <Download className="mr-2 h-4 w-4" />
                 Export
@@ -390,7 +315,7 @@ export function TestConfiguration() {
                 value={concurrency}
                 onChange={(e) => setConcurrency(e.target.value)}
                 className="border-gray-300"
-                disabled={isTestRunning}
+                disabled={start.isPending}
               />
               <p className="mt-1 text-xs text-gray-600">
                 Number of concurrent requests at each phase
@@ -407,7 +332,7 @@ export function TestConfiguration() {
                   value={rampDuration}
                   onChange={(e) => setRampDuration(e.target.value)}
                   className="border-gray-300"
-                  disabled={isTestRunning}
+                  disabled={start.isPending}
                 />
               </div>
               <div>
@@ -420,7 +345,7 @@ export function TestConfiguration() {
                   value={holdDuration}
                   onChange={(e) => setHoldDuration(e.target.value)}
                   className="border-gray-300"
-                  disabled={isTestRunning}
+                  disabled={start.isPending}
                 />
               </div>
             </div>
@@ -431,26 +356,17 @@ export function TestConfiguration() {
           <Button
             variant="outline"
             className="border-gray-300 bg-transparent"
-            disabled={isTestRunning}
+                disabled={start.isPending}
           >
             Save as Template
           </Button>
-          <Button
+            <Button
             onClick={handleStartTest}
             className="bg-linear-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700"
-            disabled={isTestRunning || !isConnected || start.isPending}
+            disabled={start.isPending}
           >
-            {isTestRunning ? (
-              <>
-                <Loader2 className="h-5 w-5 animate-spin text-purple-600" />
-                Running...
-              </>
-            ) : (
-              <>
-                <Play className="mr-2 h-4 w-4" />
-                Run Test
-              </>
-            )}
+              <Play className="mr-2 h-4 w-4" />
+              Run Test
           </Button>
         </div>
       </div>
