@@ -139,6 +139,7 @@ async def run_test_in_background(
     try:
         total_phases = len(concurrency_steps)
         phase_summaries = []
+        all_url_metrics = {}  # Aggregate URL metrics across all phases
 
         print(f"[TEST] Running test {test_id}")
 
@@ -169,6 +170,28 @@ async def run_test_in_background(
 
             phase_summaries.append(phase_summary)
 
+            # Aggregate per_url_metrics across phases
+            per_url = summary.get("per_url_metrics", {})
+            for url, metrics in per_url.items():
+                if url not in all_url_metrics:
+                    all_url_metrics[url] = {
+                        "total_requests": 0,
+                        "successful_requests": 0,
+                        "total_time": 0,
+                        "success_rate_sum": 0,
+                        "phase_count": 0
+                    }
+                all_url_metrics[url]["total_requests"] += metrics.get(
+                    "total_requests", 0)
+                all_url_metrics[url]["successful_requests"] += metrics.get(
+                    "successful_requests", 0)
+                if metrics.get("average_time"):
+                    all_url_metrics[url]["total_time"] += metrics["average_time"] * \
+                        metrics.get("successful_requests", 0)
+                all_url_metrics[url]["success_rate_sum"] += metrics.get(
+                    "success_rate", 0)
+                all_url_metrics[url]["phase_count"] += 1
+
             await sio.emit(
                 "phase_complete",
                 phase_summary,
@@ -176,12 +199,30 @@ async def run_test_in_background(
 
             print(f"[TEST] Phase {index}/{total_phases} complete")
 
+        # Calculate aggregated URL metrics
+        per_url_metrics = {}
+        for url, aggregated in all_url_metrics.items():
+            total_requests = aggregated["total_requests"]
+            successful_requests = aggregated["successful_requests"]
+            avg_time = aggregated["total_time"] / \
+                successful_requests if successful_requests > 0 else 0
+            success_rate = (successful_requests /
+                            total_requests * 100) if total_requests > 0 else 0
+
+            per_url_metrics[url] = {
+                "total_requests": total_requests,
+                "successful_requests": successful_requests,
+                "average_time": avg_time,
+                "success_rate": success_rate
+            }
+
         final_summary = {
             "test_id": test_id,
             "phase_summaries": phase_summaries,
             "total_requests": sum(p["requests"] for p in phase_summaries),
             "success_count": sum(p["success_count"] for p in phase_summaries),
             "error_count": sum(p["error_count"] for p in phase_summaries),
+            "per_url_metrics": per_url_metrics,
         }
 
         await sio.emit(

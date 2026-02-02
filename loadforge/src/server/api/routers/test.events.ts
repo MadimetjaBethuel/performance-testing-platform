@@ -1,15 +1,15 @@
 import { subscribe } from "../../socket/eventbus";
 import { tracked } from "@trpc/server";
 import { getSocket } from "../../socket/engine.socket";
-import { createTRPCRouter, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure, protectedProcedure } from "../trpc";
 import { z } from "zod";
 import { completeTests, testPhases, testResults } from "../../db/schema";
 import { v4 as uuidv4 } from "uuid";
-import { eq, inArray } from "drizzle-orm";
-const DEFAULT_USER_ID = "default-user-001";
+import { eq, inArray, and } from "drizzle-orm";
 
 export const testsRouter = createTRPCRouter({
-  getRunningTests: publicProcedure.query(async ({ ctx }) => {
+  getRunningTests: protectedProcedure.query(async ({ ctx }) => {
+    const userId = ctx.user.id
     const tests = await ctx.db
       .select({
         id: completeTests.id,
@@ -18,10 +18,7 @@ export const testsRouter = createTRPCRouter({
         created_at: completeTests.created_at,
       })
       .from(completeTests)
-      // drizzle-orm doesn't have a strict string literal type for varchar here,
-      // so we keep it as a plain comparison.
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-      .where(eq(completeTests.status, "running"))
+      .where (and(eq(completeTests.status, "running"), eq(completeTests.user_id, userId)))
       .limit(50);
 
     return tests.map((t) => ({
@@ -31,9 +28,7 @@ export const testsRouter = createTRPCRouter({
       createdAt: t.created_at?.toISOString?.() ?? null,
     }));
   }),
-  getLatestPhases: publicProcedure
-    .input(z.object({ testIds: z.array(z.string()) }))
-    .query(async ({ ctx, input }) => {
+  getLatestPhases: protectedProcedure.input(z.object({ testIds: z.array(z.string()) })).query(async ({ ctx, input }) => {
       if (input.testIds.length === 0) return [];
 
       // Get all phases for the requested tests
@@ -62,8 +57,7 @@ export const testsRouter = createTRPCRouter({
         percentiles: phase.percentile as { p50: number; p95: number; p99: number },
       }));
     }),
-  startTest: publicProcedure
-    .input(
+  startTest: protectedProcedure.input(
       z.object({
         urls: z.array(z.string().url()),
         concurrency: z.array(z.number().positive()),
@@ -74,13 +68,13 @@ export const testsRouter = createTRPCRouter({
         total_duration: z.number().positive(),
         name: z.string().optional(),
       })
-    )
-    .mutation(async ({ input, ctx }) => {
+    ).mutation(async ({ input, ctx }) => {
       const socket = getSocket();
+      const userId = ctx.user.id;
 
       if (!socket.connected) {
         throw new Error(
-          "Socket not connected. PLease ensure the backend is running ."
+          "Socket not connected. Please ensure the backend is running."
         );
       }
       console.log(
@@ -94,7 +88,7 @@ export const testsRouter = createTRPCRouter({
       try {
         await ctx.db.insert(completeTests).values({
           id: id.toString(),
-          user_id: DEFAULT_USER_ID,
+          user_id: userId,
           name: input.name || "Load test for now",
           urls: input.urls,
           concurrency_pattern: input.concurrency,
@@ -118,7 +112,7 @@ export const testsRouter = createTRPCRouter({
       } catch (error) {
         console.log("Failed to start test");
         throw new Error(
-          "Failed to start test. please check db connection or socket connection"
+          "Failed to start test. Please check db connection or socket connection"
         );
       }
 

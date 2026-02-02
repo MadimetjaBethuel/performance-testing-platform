@@ -1,74 +1,20 @@
 // loadforge/src/server/api/routers/loadtest.ts
 import { z } from "zod"
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc"
+import { createTRPCRouter, publicProcedure , protectedProcedure} from "~/server/api/trpc"
 import { testResults, completeTests } from "~/server/db/schema" // Import your schema tables
-import { eq } from "drizzle-orm" // Import eq for equality comparisons
+import { eq, and } from "drizzle-orm" // Import eq for equality comparisons
 
 export const loadTestRouter = createTRPCRouter({
-  // Get all load tests
-  getAll: publicProcedure.query(async () => {
-    // TODO: Replace with actual database query
-    return [
-      {
-        id: 1,
-        name: "Homepage Performance Test",
-        status: "completed",
-        createdAt: new Date(),
-        duration: 300,
-        successRate: 99.2,
-      },
-      {
-        id: 2,
-        name: "API Endpoint Stress Test",
-        status: "completed",
-        createdAt: new Date(Date.now() - 86400000),
-        duration: 600,
-        successRate: 98.5,
-      },
-    ]
-  }),
-
-  // Get test by ID
-  getById: publicProcedure.input(z.object({ id: z.number() })).query(async ({ input }) => {
-    // TODO: Replace with actual database query
-    return {
-      id: input.id,
-      name: "Homepage Performance Test",
-      urls: ["https://example.com", "https://example.com/api"],
-      concurrencyPattern: [10, 50, 100, 50, 10],
-      duration: 300,
-      status: "completed",
-    }
-  }),
-
-  // Create new load test
-  create: publicProcedure
-    .input(
-      z.object({
-        name: z.string().min(1),
-        urls: z.array(z.string().url()),
-        concurrencyPattern: z.array(z.number().positive()),
-        duration: z.number().positive(),
-        rampUpTime: z.number().min(0),
-        rampDownTime: z.number().min(0),
-      }),
-    )
-    .mutation(async ({ input }) => {
-      // TODO: Replace with actual database mutation and trigger Python script
-      console.log("[v0] Creating load test:", input)
-      return {
-        id: Math.floor(Math.random() * 1000),
-        ...input,
-        status: "pending",
-        createdAt: new Date(),
-      }
-    }),
 
   // Get test results
-  getResults: publicProcedure.input(z.object({ testId: z.string() })).query(async ({ ctx, input }) => {
+  getResults: protectedProcedure.input(z.object({ testId: z.string() })).query(async ({ ctx, input }) => {
+    const userId = ctx.user.id;
     // We expect testId to be a string, matching the varchar type in the schema
     const result = await ctx.db.query.testResults.findFirst({
-      where: eq(testResults.test_id, input.testId),
+      where: and(
+        eq(testResults.test_id, input.testId),
+        eq(testResults.user_id, userId)
+      )
     });
 
     if (!result) {

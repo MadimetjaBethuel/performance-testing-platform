@@ -17,7 +17,7 @@ interface TestResultsProps {
     p95ResponseTime: number;
     p99ResponseTime: number;
     requestsPerSecond: number;
-    urlBreakdown: Array<{
+    urlBreakdown: Record<string, {
       url: string;
       requests: number;
       avgResponseTime: number;
@@ -31,14 +31,6 @@ interface TestResultsProps {
   };
 }
 export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
-
-
-  const urlBreakdown = [
-    { url: "/api/users", requests: 4820, avgTime: 142, success: 100 },
-    { url: "/api/products", requests: 3650, avgTime: 168, success: 99.8 },
-    { url: "/api/orders", requests: 2890, avgTime: 195, success: 98.5 },
-    { url: "/api/checkout", requests: 1560, avgTime: 234, success: 97.2 },
-  ]
   const overallSuccessRate = results.totalRequests
     ? (results.successfulRequests / results.totalRequests) * 100
     : 0;
@@ -124,12 +116,14 @@ export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {/* Check if urlBreakdown is an object before attempting to iterate */}
-            {typeof results.urlBreakdown === 'object' && results.urlBreakdown !== null ? (
-              Object.entries(results.urlBreakdown).map(([url, urlMetric]) => ( // Iterate over entries
+            {/* Check if urlBreakdown is an object with entries */}
+            {typeof results.urlBreakdown === 'object' && 
+             results.urlBreakdown !== null && 
+             Object.keys(results.urlBreakdown).length > 0 ? (
+              Object.entries(results.urlBreakdown).map(([url, urlMetric]: [string, any]) => (
                 <div key={url} className="rounded-lg border border-gray-200 p-4">
                   <div className="mb-3 flex items-center justify-between">
-                    <code className="text-sm font-medium text-gray-900">{url}</code> {/* Use 'url' as the key */}
+                    <code className="text-sm font-medium text-gray-900">{url}</code>
                     <Badge
                       variant={urlMetric.successRate >= 99 ? "default" : "destructive"}
                       className={
@@ -138,23 +132,23 @@ export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
                           : "bg-yellow-100 text-yellow-700 hover:bg-yellow-200"
                       }
                     >
-                      {urlMetric.successRate.toFixed(1)}% success
+                      {Number(urlMetric.successRate).toFixed(1)}% success
                     </Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-gray-600">Requests:</span>
-                      <span className="ml-2 font-medium text-gray-900">{urlMetric.requests.toLocaleString()}</span>
+                      <span className="ml-2 font-medium text-gray-900">{urlMetric.requests?.toLocaleString() || 0}</span>
                     </div>
                     <div>
                       <span className="text-gray-600">Avg Time:</span>
-                      <span className="ml-2 font-medium text-gray-900">{urlMetric.avgResponseTime}ms</span>
+                      <span className="ml-2 font-medium text-gray-900">{urlMetric.avgResponseTime || 0}ms</span>
                     </div>
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-gray-500">No URL breakdown data available or format is incorrect.</p>
+              <p className="text-gray-500">No URL breakdown data available.</p>
             )}
           </div>
         </CardContent>

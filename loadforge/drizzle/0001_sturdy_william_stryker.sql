@@ -1,1 +1,0 @@
-ALTER TABLE "loadforge_load_test" ALTER COLUMN "test_phase_id" DROP NOT NULL;

@@ -106,9 +106,19 @@ export const onTestComplete = () => {
 
       console.log(`✅ [DB] Test status updated`);
 
-      // Calculate URL breakdown (if we have URL-specific data)
+      // Calculate URL breakdown from backend per_url_metrics
       const urlBreakdown: Record<string, any> = {};
-      // TODO: If backend provides per-URL metrics, populate this
+      const perUrlMetrics = testData.per_url_metrics || {};
+      
+      for (const [url, metrics] of Object.entries(perUrlMetrics)) {
+        const urlMetric = metrics as any;
+        urlBreakdown[url] = {
+          url: url,
+          requests: urlMetric.total_requests || 0,
+          avgResponseTime: Math.round((urlMetric.average_time || 0) * 1000), // Convert to ms
+          successRate: Number((urlMetric.success_rate || 0).toFixed(1)),
+        };
+      }
 
       // Prepare phase metrics
       const phaseMetrics = {

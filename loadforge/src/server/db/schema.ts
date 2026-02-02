@@ -1,7 +1,5 @@
-import { table } from "console";
 import { sql } from "drizzle-orm";
 import {
-  pgTableCreator,
   serial,
   varchar,
   text,
@@ -9,22 +7,85 @@ import {
   integer,
   jsonb,
   unique,
+  boolean,
+  index,
+  pgTableCreator
 } from "drizzle-orm/pg-core";
 
 export const createTable = pgTableCreator((name) => `loadforge_${name}`);
 
 export const users = createTable("user", {
   id: varchar("id").primaryKey(),
-  username: varchar("username", { length: 256 }).notNull().unique(),
+  name: varchar("name", { length: 256 }).notNull(),
   email: varchar("email", { length: 256 }).notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
-  created_at: timestamp("created_at")
-    .default(sql`CURRENT_TIMESTAMP`)
-    .notNull(),
-  updated_at: timestamp("updated_at")
-    .default(sql`CURRENT_TIMESTAMP`)
+  emailVerified: boolean("email_verified").default(false).notNull(),
+  passwordHash: text("password_hash"),
+  image: text("image"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at")
+    .defaultNow()
+    .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
+
+export const session = createTable(
+  "session",
+  {
+    id: text("id").primaryKey(),
+    expiresAt: timestamp("expires_at").notNull(),
+    token: text("token").notNull().unique(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+  },
+  (table:any) => [index("session_userId_idx").on(table.userId)],
+);
+
+export const account = createTable(
+  "account",
+  {
+    id: text("id").primaryKey(),
+    accountId: text("account_id").notNull(),
+    providerId: text("provider_id").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token"),
+    refreshToken: text("refresh_token"),
+    idToken: text("id_token"),
+    accessTokenExpiresAt: timestamp("access_token_expires_at"),
+    refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+    scope: text("scope"),
+    password: text("password"),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table:any) => [index("account_userId_idx").on(table.userId)],
+);
+
+export const verification = createTable(
+  "verification",
+  {
+    id: text("id").primaryKey(),
+    identifier: text("identifier").notNull(),
+    value: text("value").notNull(),
+    expiresAt: timestamp("expires_at").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at")
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table:any) => [index("verification_identifier_idx").on(table.identifier)],
+);
 
 export const testPhases = createTable(
   "test_phase",
@@ -50,7 +111,7 @@ export const testPhases = createTable(
       .default(sql`CURRENT_TIMESTAMP`)
       .notNull(),
   },
-  (table) => ({
+  (table:any) => ({
     uniqueTestPhase: unique().on(table.test_id, table.phase_number),
   })
 );
@@ -104,3 +165,6 @@ export const settings = createTable("setting", {
     .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
 });
+
+
+

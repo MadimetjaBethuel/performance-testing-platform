@@ -1,2 +1,0 @@
-ALTER TABLE "loadforge_test_phase" ALTER COLUMN "test_id" SET NOT NULL;--> statement-breakpoint
-ALTER TABLE "loadforge_test_phase" ADD CONSTRAINT "loadforge_test_phase_test_id_phase_number_unique" UNIQUE("test_id","phase_number");

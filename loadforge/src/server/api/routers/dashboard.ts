@@ -1,12 +1,16 @@
-import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
+import { createTRPCRouter, protectedProcedure, publicProcedure } from "~/server/api/trpc";
 import { z } from "zod";
+import { eq } from "drizzle-orm" 
+import { completeTests } from "../../db/schema";
 
 
 export const dashboardRouter = createTRPCRouter({
   // Get overview metrics
-  getOverview: publicProcedure.query(async ({ctx}) => {
+  getOverview: protectedProcedure.query(async ({ctx}) => {
+    const userId = ctx.user.id;
 
     const tests = await ctx.db.query.completeTests.findMany({
+      where: eq(completeTests.user_id, userId),
         orderBy: (t,{desc}) => [desc(t.created_at)],
     })
     const results = await ctx.db.query.testResults.findMany()

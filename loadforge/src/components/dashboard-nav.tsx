@@ -3,17 +3,22 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Activity, Settings, Zap, BarChart3, Radio } from "lucide-react"
+import { Skeleton } from "~/components/ui/skeleton"
 import { Button } from "~/components/ui/button"
+import { authClient } from "~/lib/auth.client"
+import { UserDropdown } from "./user-dropdown"
 
 export function DashboardNav() {
   const pathname = usePathname()
+  const {data: session, isPending} = authClient.useSession()
+
 
   const links = [
     { href: "/", label: "Dashboard", icon: Activity },
     { href: "/test", label: "New Test", icon: Zap },
     { href: "/live", label: "Live Tests", icon: Radio },
     // { href: "/results", label: "Results", icon: BarChart3 },
-    { href: "/settings", label: "Settings", icon: Settings },
+    // { href: "/settings", label: "Settings", icon: Settings },
   ]
 
   return (
@@ -47,8 +52,14 @@ export function DashboardNav() {
               </Link>
             )
           })}
-        </div>
+          {isPending ? (
+            <Skeleton className="h-10 w-10 rounded-full" />
+          ) : (
+            session?.user && <UserDropdown user={session.user} />
+          )}
+        </div>  
       </div>
     </nav>
   )
 }
+
