@@ -15,6 +15,14 @@ RUN adduser --system --uid 1001 nextjs
 # Copy entire project (mirrors local structure exactly)
 COPY . .
 
+ARG NEXT_PUBLIC_APP_URL
+ARG NEXT_PUBLIC_BETTER_AUTH_CALLBACK
+
+# Set as environment variables for the build
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_BETTER_AUTH_CALLBACK=$NEXT_PUBLIC_BETTER_AUTH_CALLBACK
+
+
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 

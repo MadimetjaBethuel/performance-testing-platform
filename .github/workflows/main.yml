@@ -1,18 +1,18 @@
 name: Build & Push Docker Images to ECR
 on:
   push:
-    branches: [ main ]
+    branches: [main]
     paths:
-      - 'backend/**'
-      - 'loadforge/**'
-    
+      - "backend/**"
+      - "loadforge/**"
+
 permissions:
   contents: read
 
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  ECR_REPO : ${{ secrets.ECR_REPO }}
+  ECR_REPO: ${{ secrets.ECR_REPO }}
 
 jobs:
   build-and-push:
@@ -27,11 +27,11 @@ jobs:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
-        
+
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
-      
+
       - name: Ensure ECR repository exists
         run: |
           aws ecr describe-repositories --repository-names ${{ env.ECR_REPO }} || \
@@ -51,8 +51,8 @@ jobs:
           platforms: linux/amd64
           tags: |
             ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
-            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ github.sha }}
-    
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:backend-${{ github.sha }}
+
       - name: Build and Push Frontend Image
         id: build-frontend-image
         env:
@@ -65,6 +65,9 @@ jobs:
           file: ./loadforge/Dockerfile
           platforms: linux/amd64
           push: true
+          build-args: |
+            NEXT_PUBLIC_APP_URL=${{ secrets.NEXT_PUBLIC_APP_URL }}
+            NEXT_PUBLIC_BETTER_AUTH_CALLBACK=${{ secrets.NEXT_PUBLIC_BETTER_AUTH_CALLBACK }}
           tags: |
             ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ env.IMAGE_TAG }}
-            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:${{ github.sha }}
+            ${{ env.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO }}:frontend-${{ github.sha }}
