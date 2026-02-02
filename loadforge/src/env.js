@@ -38,9 +38,9 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     SOCKET_URL: process.env.SOCKET_URL,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ,
     VERCEL_URL: process.env.VERCEL_URL,
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL
     // NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
