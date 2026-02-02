@@ -24,7 +24,7 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    NEXT_PUBLIC_APP_URL: z.string().url(),
+    // NEXT_PUBLIC_APP_URL: z.string().url(),
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
     // NEXT_PUBLIC_WS_URL: z.string().url(),
     BETTER_AUTH_CALLBACK: z.string().url()
@@ -40,8 +40,8 @@ export const env = createEnv({
     SOCKET_URL: process.env.SOCKET_URL,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL ,
-    VERCEL_URL: process.env.VERCEL_URL,
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    // VERCEL_URL: process.env.VERCEL_URL,
+    // NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     BETTER_AUTH_CALLBACK: process.env.BETTER_AUTH_CALLBACK, 
     // NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
