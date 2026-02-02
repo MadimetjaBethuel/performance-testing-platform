@@ -4,6 +4,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import * as schema from '../server/db/schema'
 import{nextCookies} from 'better-auth/next-js';
 import { env } from '~/env'
+
 export const auth = betterAuth({
 //   socialProviders: {
 //     google: {
@@ -26,6 +27,9 @@ export const auth = betterAuth({
     requireEmailVerification: false
   },
   plugins: [nextCookies()],
-  secret: env.BETTER_AUTH_SECRET
+  secret: env.BETTER_AUTH_SECRET,
+  baseURL: env.BETTER_AUTH_URL || 'http://localhost:3000',
+
+
   
 })
