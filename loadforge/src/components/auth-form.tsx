@@ -51,8 +51,8 @@ export function AuthForm({ mode }: AuthFormProps) {
         if (result.error) {
           setError(result.error.message || "Login failed")
         } else {
-          router.push("/")
-          router.refresh()
+          // Use full page reload to ensure session cookie is properly set
+          window.location.href = "/"
         }
       } else {
         const result = await authClient.signUp.email({
@@ -64,8 +64,8 @@ export function AuthForm({ mode }: AuthFormProps) {
         if (result.error) {
           setError(result.error.message || "Signup failed")
         } else {
-          router.push("/")
-          router.refresh()
+          // Use full page reload to ensure session cookie is properly set
+          window.location.href = "/"
         }
       }
     } catch (err) {
