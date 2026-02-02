@@ -14,7 +14,8 @@ export const env = createEnv({
       .enum(["development", "test", "production"])
       .default("development"),
     BETTER_AUTH_SECRET: z.string().min(32),
-    BETTER_AUTH_URL: z.string().url().optional(),
+    BETTER_AUTH_URL: z.string().url(),
+    VERCEL_URL: z.string().optional(),
   },
 
   /**
@@ -23,6 +24,7 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
+    NEXT_PUBLIC_APP_URL: z.string().url(),
     // NEXT_PUBLIC_CLIENTVAR: z.string(),
     // NEXT_PUBLIC_WS_URL: z.string().url(),
   },
@@ -36,7 +38,9 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
     SOCKET_URL: process.env.SOCKET_URL,
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
-    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
+    BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
+    VERCEL_URL: process.env.VERCEL_URL,
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'),
     // NEXT_PUBLIC_WS_URL: process.env.NEXT_PUBLIC_WS_URL,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
