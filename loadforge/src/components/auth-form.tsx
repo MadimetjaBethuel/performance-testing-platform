@@ -46,26 +46,26 @@ export function AuthForm({ mode }: AuthFormProps) {
         const result = await authClient.signIn.email({
           email: formData.email,
           password: formData.password,
+          callbackURL:"/"
         })
 
         if (result.error) {
           setError(result.error.message || "Login failed")
         } else {
-          // Use full page reload to ensure session cookie is properly set
-          window.location.href = "/"
+          router.push("/")
         }
       } else {
         const result = await authClient.signUp.email({
           email: formData.email,
           password: formData.password,
           name: formData.name,
+          callbackURL:"/"
         })
 
         if (result.error) {
           setError(result.error.message || "Signup failed")
         } else {
-          // Use full page reload to ensure session cookie is properly set
-          window.location.href = "/"
+          router.push("/")
         }
       }
     } catch (err) {
