@@ -52,6 +52,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         if (result.error) {
           setError(result.error.message || "Login failed")
         } else {
+          await new Promise(resolve => setTimeout(resolve, 500))
           router.push("/")
         }
       } else {
@@ -65,6 +66,7 @@ export function AuthForm({ mode }: AuthFormProps) {
         if (result.error) {
           setError(result.error.message || "Signup failed")
         } else {
+          await new Promise(resolve => setTimeout(resolve, 500))
           router.push("/")
         }
       }
