@@ -22,6 +22,8 @@ export function middleware(request: NextRequest) {
   // 3. Edge-safe session check (cookie presence ONLY)
   const sessionToken = request.cookies.get(SESSION_COOKIE)
 
+  console.log("Middleware - sessionToken:", request.cookies)
+  console.log("Middleware - session_token:", sessionToken)
 
 
   if (!sessionToken) {
