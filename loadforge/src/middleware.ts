@@ -1,31 +1,34 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { auth } from "~/lib/auth" // server-side BetterAuth instance
 
 const PUBLIC_PATHS = ["/login", "/signup"]
 const PUBLIC_API_PREFIXES = ["/api/auth"]
 
-export async function middleware(request: NextRequest) {
+const SESSION_COOKIE = "better-auth.session" // ← adjust if needed
+
+export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // 1. Allow public pages
   if (PUBLIC_PATHS.includes(pathname)) {
     return NextResponse.next()
   }
 
+  // 2. Allow auth APIs
   if (PUBLIC_API_PREFIXES.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  })
+  // 3. Edge-safe session check (cookie presence ONLY)
+  const sessionToken = request.cookies.get(SESSION_COOKIE)?.value
 
-  if (!session) {
+  if (!sessionToken) {
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("from", pathname)
     return NextResponse.redirect(loginUrl)
   }
 
+  // 4. Authenticated
   return NextResponse.next()
 }
 
