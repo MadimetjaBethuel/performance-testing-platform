@@ -4,7 +4,7 @@ import type { NextRequest } from "next/server"
 const PUBLIC_PATHS = ["/login", "/signup"]
 const PUBLIC_API_PREFIXES = ["/api/auth"]
 
-const SESSION_COOKIE = "better-auth.session" // ← adjust if needed
+const SESSION_COOKIE = "better-auth.session_token" // ← adjust if needed
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -20,7 +20,9 @@ export function middleware(request: NextRequest) {
   }
 
   // 3. Edge-safe session check (cookie presence ONLY)
-  const sessionToken = request.cookies.get(SESSION_COOKIE)?.value
+  const sessionToken = request.cookies.get(SESSION_COOKIE)
+
+
 
   if (!sessionToken) {
     const loginUrl = new URL("/login", request.url)
