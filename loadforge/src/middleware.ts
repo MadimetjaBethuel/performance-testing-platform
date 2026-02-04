@@ -1,47 +1,36 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
+import { auth } from "~/lib/auth" // server-side BetterAuth instance
 
-const PUBLIC_PATHS = ["/login", "/signup"] as const
-const PUBLIC_API_PREFIXES = ["/api/auth"] as const
+const PUBLIC_PATHS = ["/login", "/signup"]
+const PUBLIC_API_PREFIXES = ["/api/auth"]
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Allow public paths
-  if (PUBLIC_PATHS.includes(pathname as any)) {
+  if (PUBLIC_PATHS.includes(pathname)) {
     return NextResponse.next()
   }
 
-  // Allow public API routes
-  if (PUBLIC_API_PREFIXES.some(prefix => pathname.startsWith(prefix))) {
+  if (PUBLIC_API_PREFIXES.some(p => pathname.startsWith(p))) {
     return NextResponse.next()
   }
 
-  // Check session
-  const sessionToken = request.cookies.get("better-auth.session_token")
-  const hasSession = !!sessionToken?.value
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  })
 
-  if (!hasSession) {
+  if (!session) {
     const loginUrl = new URL("/login", request.url)
     loginUrl.searchParams.set("from", pathname)
-    
-    const response = NextResponse.redirect(loginUrl)
-    
-    // Optional: Add security headers
-    response.headers.set("X-Redirect-Reason", "unauthorized")
-    
-    return response
+    return NextResponse.redirect(loginUrl)
   }
 
-  // Optional: Add security headers to authenticated requests
-  const response = NextResponse.next()
-  response.headers.set("X-Authenticated", "true")
-  
-  return response
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|woff|woff2|ttf|eot)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(png|jpg|jpeg|svg|ico)$).*)",
   ],
 }

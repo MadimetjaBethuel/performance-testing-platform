@@ -59,7 +59,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           },
           onSuccess: ()=> {
             console.log("Login successful")
-            router.push("/test")
+            router.push("/")
           },
           onError: (error) => {
             console.error("Login error:", error)
