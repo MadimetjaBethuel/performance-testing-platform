@@ -46,8 +46,28 @@ export function AuthForm({ mode }: AuthFormProps) {
         const result = await authClient.signIn.email({
           email: formData.email,
           password: formData.password,
-          callbackURL:"/"
-        })
+          callbackURL:"/",
+          
+        },
+        {
+          redirect: "manual",
+          onResponse: ()=> {
+            console.log("Response received")
+          },
+          onRequest: ()=> {
+            console.log("Request sent")
+          },
+          onSuccess: ()=> {
+            console.log("Login successful")
+            router.push("/")
+          },
+          onError: (error) => {
+            console.error("Login error:", error)
+          }
+        }
+       
+      
+      )
 
         if (result.error) {
           setError(result.error.message || "Login failed")
@@ -61,7 +81,24 @@ export function AuthForm({ mode }: AuthFormProps) {
           password: formData.password,
           name: formData.name,
           callbackURL:"/"
-        })
+        },
+        {
+          redirect: "manual",
+          onResponse: ()=> {
+            console.log("Response received")
+          },
+          onRequest: ()=> {
+            console.log("Request sent")
+          },
+          onSuccess: ()=> {
+            console.log("Login successful")
+            router.push("/")
+          },
+          onError: (error) => {
+            console.error("Login error:", error)
+          }
+        }
+      )
 
         if (result.error) {
           setError(result.error.message || "Signup failed")
