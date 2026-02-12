@@ -13,7 +13,9 @@ export const dashboardRouter = createTRPCRouter({
       where: eq(completeTests.user_id, userId),
         orderBy: (t,{desc}) => [desc(t.created_at)],
     })
-    const results = await ctx.db.query.testResults.findMany()
+    const results = await ctx.db.query.testResults.findMany({
+      where: eq(completeTests.user_id, userId),
+    })
 
 
      const totalTests = tests.length;

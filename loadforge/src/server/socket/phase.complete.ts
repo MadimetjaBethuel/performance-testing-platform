@@ -57,6 +57,8 @@ export const onPhaseComplete = () => {
         error_count: phaseData.error_count,
         percentile: phaseData.percentiles,
         requests: phaseData.requests,
+      }).onConflictDoNothing({
+        target: [testPhases.test_id, testPhases.phase_number, testPhases.user_id],
       });
 
       processedPhases.add(phaseKey);
@@ -79,6 +81,7 @@ export const onPhaseComplete = () => {
         code: error?.code,
         constraint: error?.constraint,
       });
+      processedPhases.add(phaseKey);
     }
   });
   console.log("✅ [DB] Phase complete handler subscribed");
