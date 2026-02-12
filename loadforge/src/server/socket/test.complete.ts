@@ -4,7 +4,6 @@ import { completeTests, testResults } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
-const DEFAULT_USER_ID = "default-user-001";
 
 // Helper function to convert seconds to milliseconds and round to integer
 function secondsToMs(seconds: number): number {
@@ -34,6 +33,7 @@ export const onTestComplete = () => {
       const totalRequests = testData.total_requests || 0;
       const successfulRequests = testData.success_count || 0;
       const failedRequests = testData.error_count || 0;
+      const userId = testData.user_id || "unknown_user";
 
       const allPercentiles = phaseSummaries
         .map((p: any) => p.percentiles || {})
@@ -138,7 +138,7 @@ export const onTestComplete = () => {
 
       await db.insert(testResults).values({
         id: test_result_id.toString(),
-        user_id: DEFAULT_USER_ID,
+        user_id: userId,
         test_id: testData.test_id,
         total_requests: totalRequests,
         successful_requests: successfulRequests,

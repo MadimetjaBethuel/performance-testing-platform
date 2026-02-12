@@ -103,6 +103,7 @@ export const testsRouter = createTRPCRouter({
           concurrency: input.concurrency,
           phase_length: input.phase_length,
           test_id: id,
+          user_id: userId,
         });
 
         return {

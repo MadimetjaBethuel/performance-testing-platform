@@ -8,6 +8,13 @@
       "when": 1770022087734,
       "tag": "0000_mighty_red_skull",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1770869932303,
+      "tag": "0001_normal_inhumans",
+      "breakpoints": true
     }
   ]
 }

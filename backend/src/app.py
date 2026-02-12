@@ -87,10 +87,11 @@ async def start_test(sid, data):
             return
 
         test_id = data.get("test_id")
-        if not test_id:
+        user_id = data.get("user_id", "unknown_user")
+        if not test_id or not user_id:
             await sio.emit(
                 "error",
-                {"error": "test_id is required"},
+                {"error": "test_id and user_id are required"},
             )
             return
 
@@ -105,7 +106,8 @@ async def start_test(sid, data):
                 urls=urls,
                 concurrency_steps=concurrency_steps,
                 phase_length=phase_length,
-                request_timeout=request_timeout
+                request_timeout=request_timeout,
+                user_id=user_id
             )
         )
 
@@ -114,7 +116,8 @@ async def start_test(sid, data):
             {"message": "Test started", "test_id": test_id},
         )
 
-        print(f"[TEST] Started test {test_id} for client {sid}")
+        print(
+            f"[TEST] Started test {test_id} for client {sid} and user {user_id}")
 
     except Exception as exc:
         print(f"[ERROR] start_test failed: {exc}")
@@ -131,6 +134,7 @@ async def start_test(sid, data):
 async def run_test_in_background(
     sid,
     test_id,
+    user_id,
     urls,
     concurrency_steps,
     phase_length,
@@ -141,7 +145,7 @@ async def run_test_in_background(
         phase_summaries = []
         all_url_metrics = {}  # Aggregate URL metrics across all phases
 
-        print(f"[TEST] Running test {test_id}")
+        print(f"[TEST] Running test {test_id} for user {user_id}")
 
         for index, concurrency in enumerate(concurrency_steps, start=1):
             summary, detailed = await asyncio.to_thread(
@@ -160,6 +164,7 @@ async def run_test_in_background(
             phase_summary = {
                 "phase": index,
                 "test_id": test_id,
+                "user_id": user_id,
                 "total_phases": total_phases,
                 "concurrency": concurrency,
                 "requests": requests_count,
@@ -218,6 +223,7 @@ async def run_test_in_background(
 
         final_summary = {
             "test_id": test_id,
+            "user_id": user_id,
             "phase_summaries": phase_summaries,
             "total_requests": sum(p["requests"] for p in phase_summaries),
             "success_count": sum(p["success_count"] for p in phase_summaries),

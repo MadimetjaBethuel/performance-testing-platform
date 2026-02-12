@@ -3,8 +3,9 @@ import { db } from "../db/index";
 import { testPhases } from "../db/schema";
 import { v4 as uuidv4 } from "uuid";
 import { eq, and } from "drizzle-orm";
+import { auth } from "~/lib/auth";
 
-const DEFAULT_USER_ID = "default-user-001";
+
 const processedPhases = new Set<string>();
 
 export const onPhaseComplete = () => {
@@ -21,13 +22,16 @@ export const onPhaseComplete = () => {
     }
 
     try {
+
+      
       const existingPhase = await db
         .select()
         .from(testPhases)
         .where(
           and(
             eq(testPhases.test_id, phaseData.test_id),
-            eq(testPhases.phase_number, phaseData.phase)
+            eq(testPhases.phase_number, phaseData.phase),
+            eq(testPhases.user_id, phaseData.user_id)
           )
         )
         .limit(1);
@@ -45,7 +49,7 @@ export const onPhaseComplete = () => {
       await db.insert(testPhases).values({
         id: phase_id,
         test_id: phaseData.test_id,
-        user_id: DEFAULT_USER_ID,
+        user_id: phaseData.user_id,
         phase_number: phaseData.phase,
         total_phases: phaseData.total_phases,
         concurrency: phaseData.concurrency,
