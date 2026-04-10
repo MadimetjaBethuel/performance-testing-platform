@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Badge } from "~/components/ui/badge"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { CheckCircle2, Clock, TrendingUp, AlertCircle } from "lucide-react"
+
 interface TestResultsProps {
   results: {
     testId: string | null;
@@ -23,14 +24,23 @@ interface TestResultsProps {
       avgResponseTime: number;
       successRate: number;
     }>;
-    phaseMetrics: {
-      rampUp: { avgResponseTime: number; successRate: number; };
-      steady: { avgResponseTime: number; successRate: number; };
-      rampDown: { avgResponseTime: number; successRate: number; };
-    };
+   phaseMetrics: {
+  rampUp: { percentiles: { p50: number; p95: number; p99: number }; concurrency: number; requests: number; success_count: number; error_count: number; };
+  steady: { percentiles: { p50: number; p95: number; p99: number }; concurrency: number; requests: number; success_count: number; error_count: number; };
+  rampDown: { percentiles: { p50: number; p95: number; p99: number }; concurrency: number; requests: number; success_count: number; error_count: number; };
+};
   };
+   phases: Array<{
+    phase: number;
+    concurrency: number;
+    requests: number;
+    successCount: number;
+    errorCount: number;
+    percentiles: { p50: number; p95: number; p99: number };
+    successRate: number;
+  }>;
 }
-export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
+export const  TestResults: React.FC<TestResultsProps> = ({ results, phases }) => {
   const overallSuccessRate = results.totalRequests
     ? (results.successfulRequests / results.totalRequests) * 100
     : 0;
@@ -44,10 +54,39 @@ export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
   ];
 
   // Data for the "Average Response Times by Phase" chart
-  const performanceData = [
-    { phase: "Ramp Up", avgTime: results.phaseMetrics.rampUp.avgResponseTime },
-    { phase: "Steady", avgTime: results.phaseMetrics.steady.avgResponseTime },
-    { phase: "Ramp Down", avgTime: results.phaseMetrics.rampDown.avgResponseTime },
+  const performanceData = phases.length > 0 ? phases.map((phase) => ({
+    phase: `Phase ${phase.phase}`,
+    p50: phase.percentiles.p50, 
+    p95: phase.percentiles.p95,
+    p99: phase.percentiles.p99,
+    concurrency: phase.concurrency,
+    successRate: phase.successRate,
+    requests: phase.requests,
+  })) : [
+ { 
+  phase: "Ramp Up", 
+  p50: results.phaseMetrics.rampUp.percentiles.p50, 
+  p95: results.phaseMetrics.rampUp.percentiles.p95, 
+  p99: results.phaseMetrics.rampUp.percentiles.p99, 
+  concurrency: results.phaseMetrics.rampUp.concurrency, 
+  requests: results.phaseMetrics.rampUp.requests 
+},
+{ 
+  phase: "Steady", 
+  p50: results.phaseMetrics.steady.percentiles.p50, 
+  p95: results.phaseMetrics.steady.percentiles.p95, 
+  p99: results.phaseMetrics.steady.percentiles.p99, 
+  concurrency: results.phaseMetrics.steady.concurrency, 
+  requests: results.phaseMetrics.steady.requests 
+},
+{ 
+  phase: "Ramp Down", 
+  p50: results.phaseMetrics.rampDown.percentiles.p50, 
+  p95: results.phaseMetrics.rampDown.percentiles.p95, 
+  p99: results.phaseMetrics.rampDown.percentiles.p99, 
+  concurrency: results.phaseMetrics.rampDown.concurrency, 
+  requests: results.phaseMetrics.rampDown.requests 
+},
   ];
 
   return (
@@ -83,7 +122,7 @@ export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
         })}
       </div>
 
-       <div className="mb-6">
+       {/* <div className="mb-6">
         <Card className="border-gray-200">
           <CardHeader>
             <CardTitle className="text-gray-900">Average Response Times by Phase</CardTitle>
@@ -104,7 +143,28 @@ export const  TestResults: React.FC<TestResultsProps> = ({ results }) => {
             </ResponsiveContainer>
           </CardContent>
         </Card>
-      </div>
+      </div> */}
+
+      <Card>
+      <CardHeader>
+        <CardTitle>Response Time Percentiles by Phase</CardTitle>
+        <CardDescription>P50, P95, P99 latencies across all test phases</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ResponsiveContainer width="100%" height={300}>
+          <LineChart data={performanceData}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+            <XAxis dataKey="phase" stroke="#6b7280" />
+            <YAxis stroke="#6b7280" label={{ value: 'ms', angle: -90, position: 'insideLeft' }} />
+            <Tooltip contentStyle={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px" }} />
+            <Legend />
+            <Line type="monotone" dataKey="p50" stroke="#22c55e" name="P50" strokeWidth={2} />
+            <Line type="monotone" dataKey="p95" stroke="#f59e0b" name="P95" strokeWidth={2} />
+            <Line type="monotone" dataKey="p99" stroke="#ef4444" name="P99" strokeWidth={2} />
+          </LineChart>
+        </ResponsiveContainer>
+      </CardContent>
+    </Card>
 
     
       <Card className="border-gray-200">

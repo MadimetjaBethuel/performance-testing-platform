@@ -58,7 +58,7 @@ export const onPhaseComplete = () => {
         percentile: phaseData.percentiles,
         requests: phaseData.requests,
       }).onConflictDoNothing({
-        target: [testPhases.test_id, testPhases.phase_number, testPhases.user_id],
+        target: [testPhases.test_id, testPhases.phase_number],
       });
 
       processedPhases.add(phaseKey);
