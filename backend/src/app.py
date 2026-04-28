@@ -184,7 +184,8 @@ async def run_test_in_background(
                         "successful_requests": 0,
                         "total_time": 0,
                         "success_rate_sum": 0,
-                        "phase_count": 0
+                        "phase_count": 0,
+                        "errors": {},
                     }
                 all_url_metrics[url]["total_requests"] += metrics.get(
                     "total_requests", 0)
@@ -196,6 +197,14 @@ async def run_test_in_background(
                 all_url_metrics[url]["success_rate_sum"] += metrics.get(
                     "success_rate", 0)
                 all_url_metrics[url]["phase_count"] += 1
+
+                for err in metrics.get("errors", []):
+                    key = (err.get("status_code", "error"),
+                           err.get("error") or "Unknown error")
+                    all_url_metrics[url]["errors"][key] = (
+                        all_url_metrics[url]["errors"].get(key, 0)
+                        + err.get("count", 0)
+                    )
 
             await sio.emit(
                 "phase_complete",
@@ -214,11 +223,17 @@ async def run_test_in_background(
             success_rate = (successful_requests /
                             total_requests * 100) if total_requests > 0 else 0
 
+            errors = [
+                {"status_code": code, "error": msg, "count": count}
+                for (code, msg), count in aggregated["errors"].items()
+            ]
+
             per_url_metrics[url] = {
                 "total_requests": total_requests,
                 "successful_requests": successful_requests,
                 "average_time": avg_time,
-                "success_rate": success_rate
+                "success_rate": success_rate,
+                "errors": errors,
             }
 
         final_summary = {

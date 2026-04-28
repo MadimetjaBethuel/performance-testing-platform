@@ -23,6 +23,11 @@ interface TestResultsProps {
       requests: number;
       avgResponseTime: number;
       successRate: number;
+      errors?: Array<{
+        statusCode: number | string;
+        message: string;
+        count: number;
+      }>;
     }>;
    phaseMetrics: {
   rampUp: { percentiles: { p50: number; p95: number; p99: number }; concurrency: number; requests: number; success_count: number; error_count: number; };
@@ -205,6 +210,26 @@ export const  TestResults: React.FC<TestResultsProps> = ({ results, phases }) =>
                       <span className="ml-2 font-medium text-gray-900">{urlMetric.avgResponseTime || 0}ms</span>
                     </div>
                   </div>
+                  {Array.isArray(urlMetric.errors) && urlMetric.errors.length > 0 && (
+                    <div className="mt-3 border-t border-gray-200 pt-3">
+                      <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-red-700">
+                        <AlertCircle className="h-3 w-3" />
+                        Errors
+                      </div>
+                      <ul className="space-y-1.5">
+                        {urlMetric.errors.map((err: any, i: number) => (
+                          <li key={i} className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs">
+                            <div className="flex items-start justify-between gap-2">
+                              <code className="break-all text-red-900">{err.message}</code>
+                              <Badge variant="destructive" className="shrink-0 bg-red-100 text-red-700 hover:bg-red-200">
+                                {err.statusCode} × {err.count}
+                              </Badge>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               ))
             ) : (

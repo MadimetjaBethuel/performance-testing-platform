@@ -46,12 +46,23 @@ def calculate_per_url_metrics(all_results):
         avg_time = sum(success_times) / \
             len(success_times) if success_times else None
         success_rate = (success_count/total) * 100 if total else 0
+
+        error_buckets = {}
+        for r in metrics["error_results"]:
+            key = (r.get("status_code", "error"), r.get("error") or "Unknown error")
+            error_buckets[key] = error_buckets.get(key, 0) + 1
+        errors = [
+            {"status_code": code, "error": msg, "count": count}
+            for (code, msg), count in error_buckets.items()
+        ]
+
         per_url_metrics[url] = {
             "total_requests": total,
             "successful_requests": success_count,
             "average_time": avg_time,
             "success_rate": success_rate,
             "percentiles": {k: round(v, 3) for k, v in metrics["percentiles"].items()},
-            "status_codes": metrics["status_codes"]
+            "status_codes": metrics["status_codes"],
+            "errors": errors,
         }
     return per_url_metrics

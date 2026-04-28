@@ -117,6 +117,13 @@ export const onTestComplete = () => {
           requests: urlMetric.total_requests || 0,
           avgResponseTime: Math.round((urlMetric.average_time || 0) * 1000), // Convert to ms
           successRate: Number((urlMetric.success_rate || 0).toFixed(1)),
+          errors: Array.isArray(urlMetric.errors)
+            ? urlMetric.errors.map((e: any) => ({
+                statusCode: e.status_code,
+                message: e.error,
+                count: e.count ?? 1,
+              }))
+            : [],
         };
       }
 

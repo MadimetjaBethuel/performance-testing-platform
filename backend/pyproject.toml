@@ -17,6 +17,9 @@ websockets = "^16.0"
 asgiref = "^3.11.0"
 
 
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^7.2.0"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
