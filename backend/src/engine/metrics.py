@@ -66,3 +66,96 @@ def calculate_per_url_metrics(all_results):
             "errors": errors,
         }
     return per_url_metrics
+
+
+# ---------------------------------------------------------------------------
+# JTL-derived metrics (for the scenario / JMeter flow).
+#
+# These operate on JtlRow-like objects produced by engine.jmeter_runner. They
+# duck-type the attributes (`success`, `elapsed`, `label`, `response_code`,
+# `failure_message`, `response_message`, `timestamp`, `url`) so we don't have
+# to import the runner here and create a circular dependency.
+# ---------------------------------------------------------------------------
+
+
+def _percentiles_from_sorted(sorted_values):
+    if not sorted_values:
+        return {}
+    n = len(sorted_values)
+
+    def at(p):
+        return sorted_values[min(int(n * p), n - 1)]
+
+    return {
+        "p50": at(0.50),
+        "p90": at(0.90),
+        "p95": at(0.95),
+        "p99": at(0.99),
+    }
+
+
+def summarize_jtl_rows(rows):
+    """Overall scenario metrics across all JTL samples."""
+    if not rows:
+        return {
+            "total_samples": 0,
+            "success_count": 0,
+            "error_count": 0,
+            "error_rate": 0,
+            "avg_latency_ms": None,
+            "percentiles": {},
+            "throughput_per_sec": 0,
+            "duration_seconds": 0,
+        }
+    successes = [r for r in rows if r.success]
+    success_lat = sorted(r.elapsed for r in successes)
+    timestamps = [r.timestamp for r in rows if r.timestamp]
+    span_ms = (max(timestamps) - min(timestamps)) if timestamps else 0
+    span_s = (span_ms / 1000.0) if span_ms else 0
+    duration_for_rate = span_s if span_s > 0 else 1
+    return {
+        "total_samples": len(rows),
+        "success_count": len(successes),
+        "error_count": len(rows) - len(successes),
+        "error_rate": (len(rows) - len(successes)) / len(rows),
+        "avg_latency_ms": (sum(success_lat) / len(success_lat)) if success_lat else None,
+        "percentiles": _percentiles_from_sorted(success_lat),
+        "throughput_per_sec": len(rows) / duration_for_rate,
+        "duration_seconds": span_s,
+    }
+
+
+def calculate_per_label_metrics(rows):
+    """Per-step (per JMeter label) metrics. Parallel to calculate_per_url_metrics."""
+    by_label: dict = {}
+    for r in rows:
+        by_label.setdefault(r.label, []).append(r)
+
+    out = {}
+    for label, group in by_label.items():
+        successes = [r for r in group if r.success]
+        lat = sorted(r.elapsed for r in successes)
+
+        error_buckets: dict = {}
+        for r in group:
+            if r.success:
+                continue
+            key = (
+                r.response_code or "error",
+                r.failure_message or r.response_message or "Unknown error",
+            )
+            error_buckets[key] = error_buckets.get(key, 0) + 1
+
+        out[label] = {
+            "total_requests": len(group),
+            "successful_requests": len(successes),
+            "average_time": (sum(lat) / len(lat)) if lat else None,
+            "success_rate": (len(successes) / len(group)) * 100 if group else 0,
+            "percentiles": _percentiles_from_sorted(lat),
+            "errors": [
+                {"status_code": code, "error": msg, "count": count}
+                for (code, msg), count in error_buckets.items()
+            ],
+            "sample_url": group[0].url if group else "",
+        }
+    return out

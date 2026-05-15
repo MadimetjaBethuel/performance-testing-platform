@@ -21,6 +21,7 @@ backend/src/__pycache__/
 backend/**/*.pyc
 backend/.venv/
 backend/venv/
+backend/.testenv/
 backend/.pytest_cache/
 backend/.mypy_cache/
 *.egg-info/
@@ -28,6 +29,7 @@ pip-wheel-metadata/
 .python-version
 
 /backend/results/
+/backend/data/
 
 # Coverage
 coverage/

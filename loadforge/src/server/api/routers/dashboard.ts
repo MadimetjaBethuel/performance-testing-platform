@@ -29,13 +29,30 @@ export const dashboardRouter = createTRPCRouter({
 
     const recentTests = tests.slice(0, 5).map((t) => {
       const r = results.find((res) => res.test_id === t.id);
+      // Scenarios store their metrics in completeTests.scenario_metrics, not
+      // in the testResults table. Pull request / success counts from there
+      // when present so scenario rows don't render as "— requests, —%".
+      const scenarioSummary =
+        (t.scenario_metrics as { summary?: { total_samples?: number; success_count?: number } } | null)?.summary;
+      const scenarioRequests = scenarioSummary?.total_samples ?? null;
+      const scenarioSuccessRate =
+        scenarioSummary && scenarioSummary.total_samples
+          ? Number(
+              (((scenarioSummary.success_count ?? 0) / scenarioSummary.total_samples) * 100).toFixed(1),
+            )
+          : null;
       return {
         id: t.id,
         name: t.name,
+        // 'url' = legacy CSV ramp test, 'scenario' = uploaded .jmx/.yaml
+        type: t.type,
         status: t.status,
         duration: t.duration,
-        requests: r?.total_requests ?? 0,
-        successRate: r && r.total_requests ? Number(((r.successful_requests / r.total_requests) * 100).toFixed(1)) : null,
+        requests: r?.total_requests ?? scenarioRequests ?? 0,
+        successRate:
+          r && r.total_requests
+            ? Number(((r.successful_requests / r.total_requests) * 100).toFixed(1))
+            : scenarioSuccessRate,
         createdAt: t.created_at?.toISOString?.() ?? null,
       };
     });

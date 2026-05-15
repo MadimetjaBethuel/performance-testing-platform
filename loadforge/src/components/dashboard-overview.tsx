@@ -27,9 +27,10 @@ export function DashboardOverview() {
 
   const recentTests = data
     ? data.recentTests
-    : [
-        { id: 0, name: "Loading...", status: "pending", duration: "—", requests: "—", successRate: "—", createdAt: null },
-      ]
+    : []
+
+  const detailsHref = (t: { id: string | number; type?: string | null }) =>
+    t.type === "scenario" ? `/results/scenario/${t.id}` : `/results/${t.id}`
 
 
   return (
@@ -109,7 +110,7 @@ export function DashboardOverview() {
                   >
                     {test.successRate !== null ? `${test.successRate}%` : "—"}
                   </Badge>
-                  <Link href={`/results/${test.id}`}>
+                  <Link href={detailsHref(test)}>
                     <Button
                       variant="ghost"
                       size="sm"

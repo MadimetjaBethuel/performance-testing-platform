@@ -1,19 +1,59 @@
 import os
+import re
+import uuid
 import asyncio
 import socketio
 
-from flask import Flask, jsonify
+from pathlib import Path
+
+from flask import Flask, jsonify, request
 from asgiref.wsgi import WsgiToAsgi
 
 from engine.core import run_performance_test
+from engine.injection import InjectionEngine, InjectionError, patch as patch_jmx
+from engine.jmeter_runner import RunFailed, run_scenario
+from engine.taurus_injection import (
+    TaurusInjectionEngine,
+    TaurusInjectionError,
+    patch as patch_taurus,
+)
+from engine.taurus_runner import run_taurus_scenario
 from url_loader import validate_urls, load_urls_from_json
 from config import CONCURRENCY_STEPS, PHASE_LENGTH, REQUEST_TIMEOUT
+
+
+# -------------------------------------------------
+# Scenario storage layout
+# -------------------------------------------------
+
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+SCENARIO_UPLOAD_DIR = DATA_DIR / "scenarios" / "uploads"
+SCENARIO_RUNS_DIR = DATA_DIR / "scenarios" / "runs"
+SCENARIO_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+SCENARIO_RUNS_DIR.mkdir(parents=True, exist_ok=True)
+
+MAX_JMX_BYTES = 5 * 1024 * 1024  # 5 MB cap on uploaded scenario files
+_UUID_RE = re.compile(r"^[0-9a-fA-F-]{36}$")
+_JMX_EXTS = (".jmx",)
+_YAML_EXTS = (".yaml", ".yml")
+_ALLOWED_EXTS = _JMX_EXTS + _YAML_EXTS
+
+
+def _classify_scenario(filename: str) -> str | None:
+    """Return 'jmx' or 'yaml' for accepted extensions, None for everything else."""
+    lower = filename.lower()
+    if lower.endswith(_JMX_EXTS):
+        return "jmx"
+    if lower.endswith(_YAML_EXTS):
+        return "yaml"
+    return None
 
 # -------------------------------------------------
 # Flask (HTTP / Health / Metadata)
 # -------------------------------------------------
 
 flask_app = Flask(__name__)
+flask_app.config["MAX_CONTENT_LENGTH"] = MAX_JMX_BYTES
 
 
 @flask_app.route("/health", methods=["GET"])
@@ -27,6 +67,86 @@ def root():
         "status": "running",
         "service": "performance-test-api"
     }), 200
+
+
+@flask_app.route("/scenario/upload", methods=["POST"])
+def scenario_upload():
+    """Accept a .jmx (JMeter) or .yaml/.yml (Taurus / BlazeMeter) scenario file.
+    Validate parse + sanitize, store, and return a file_id the client passes
+    to `start_scenario`."""
+    if "file" not in request.files:
+        return jsonify({"error": "no file field"}), 400
+
+    upload = request.files["file"]
+    if not upload.filename:
+        return jsonify({"error": "missing filename"}), 400
+
+    kind = _classify_scenario(upload.filename)
+    if kind is None:
+        return jsonify({
+            "error": f"expected one of {_ALLOWED_EXTS}; got {upload.filename}",
+        }), 400
+
+    payload = upload.read()
+    if len(payload) == 0:
+        return jsonify({"error": "empty file"}), 400
+
+    # Validate + sanitize per-type. We return 400 with a concrete reason
+    # so the frontend can surface it to the user.
+    if kind == "jmx":
+        try:
+            jmx_engine = InjectionEngine(payload)
+        except InjectionError as exc:
+            return jsonify({"error": f"invalid .jmx: {exc}"}), 400
+        unsafe = jmx_engine.detect_unsafe_elements()
+        if unsafe:
+            return jsonify({
+                "error": "scenario contains script-execution elements",
+                "elements": unsafe,
+            }), 400
+    else:  # kind == "yaml"
+        try:
+            yaml_engine = TaurusInjectionEngine(payload)
+        except TaurusInjectionError as exc:
+            return jsonify({"error": f"invalid Taurus YAML: {exc}"}), 400
+        unsafe = yaml_engine.detect_unsafe_elements()
+        if unsafe:
+            return jsonify({
+                "error": "scenario contains shell-execution services",
+                "elements": unsafe,
+            }), 400
+        unsupported = yaml_engine.detect_unsupported_executors()
+        if unsupported:
+            return jsonify({
+                "error": f"unsupported executors: {unsupported}. Only `jmeter` is allowed (selenium is stripped automatically).",
+            }), 400
+
+    file_id = str(uuid.uuid4())
+    ext = ".jmx" if kind == "jmx" else ".yaml"
+    stored = SCENARIO_UPLOAD_DIR / f"{file_id}{ext}"
+    stored.write_bytes(payload)
+
+    return jsonify({
+        "file_id": file_id,
+        "filename": upload.filename,
+        "kind": kind,
+        "size_bytes": len(payload),
+    }), 201
+
+
+def _resolve_uploaded_scenario(file_id: str) -> tuple[Path, str] | None:
+    """Return (path, kind) for an uploaded scenario file, or None if not found
+    or if the id fails validation. Protects against path traversal."""
+    if not _UUID_RE.match(file_id):
+        return None
+    upload_root = SCENARIO_UPLOAD_DIR.resolve()
+    for ext, kind in ((".jmx", "jmx"), (".yaml", "yaml"), (".yml", "yaml")):
+        candidate = (SCENARIO_UPLOAD_DIR / f"{file_id}{ext}").resolve()
+        if not str(candidate).startswith(str(upload_root)):
+            continue
+        if candidate.exists():
+            return candidate, kind
+    return None
 
 
 # -------------------------------------------------
@@ -125,6 +245,188 @@ async def start_test(sid, data):
             "error",
             {"error": str(exc)},
         )
+
+
+# -------------------------------------------------
+# Scenario flow (.jmx via JMeter / .yaml via Taurus)
+# -------------------------------------------------
+
+
+@sio.event
+async def start_scenario(sid, data):
+    """Run an uploaded scenario (.jmx or .yaml) and stream progress back to the client.
+
+    Expected payload:
+      {
+        "file_id":  "<uuid returned by POST /scenario/upload>",
+        "mode":     "functional" | "load",
+        "users":    int,   # ignored in functional mode
+        "rampup":   int,   # ignored in functional mode
+        "duration": int,   # ignored in functional mode
+        "test_id":  "<client-supplied id; reused as run_id>",
+        "user_id":  "<...>"
+      }
+
+    The file kind (jmx vs yaml) is determined server-side from the stored
+    upload's extension — the client doesn't need to tell us.
+
+    Emits:
+      scenario_started, scenario_progress (periodic), scenario_completed,
+      or error.
+    """
+    try:
+        file_id = (data or {}).get("file_id")
+        mode = (data or {}).get("mode", "functional")
+        test_id = (data or {}).get("test_id") or str(uuid.uuid4())
+        user_id = (data or {}).get("user_id", "unknown_user")
+        users = int((data or {}).get("users", 5))
+        rampup = int((data or {}).get("rampup", 5))
+        duration = int((data or {}).get("duration", 60))
+
+        if mode not in ("functional", "load"):
+            await sio.emit("error", {"error": f"unknown mode: {mode}"}, to=sid)
+            return
+
+        if not file_id:
+            await sio.emit("error", {"error": "file_id is required"}, to=sid)
+            return
+
+        resolved = _resolve_uploaded_scenario(file_id)
+        if resolved is None:
+            await sio.emit(
+                "error",
+                {"error": "uploaded scenario not found", "file_id": file_id},
+                to=sid,
+            )
+            return
+        source, kind = resolved
+
+        run_dir = SCENARIO_RUNS_DIR / test_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+
+        async def emit_to_client(payload: dict) -> None:
+            event_name = payload.pop("type", "scenario_event")
+            await sio.emit(event_name, payload, to=sid)
+
+        if kind == "jmx":
+            patched_path = run_dir / "patched.jmx"
+            jtl_path = run_dir / "result.jtl"
+            log_path = run_dir / "jmeter.log"
+            try:
+                patched_bytes = patch_jmx(
+                    source.read_bytes(),
+                    mode=mode,
+                    jtl_path=str(jtl_path),
+                )
+            except InjectionError as exc:
+                await sio.emit("error", {"error": str(exc)}, to=sid)
+                return
+            patched_path.write_bytes(patched_bytes)
+
+            asyncio.create_task(_run_jmx_in_background(
+                sid=sid,
+                run_id=test_id,
+                user_id=user_id,
+                jmx_path=patched_path,
+                jtl_path=jtl_path,
+                log_path=log_path,
+                mode=mode,
+                users=users,
+                rampup=rampup,
+                duration=duration,
+                emit=emit_to_client,
+            ))
+        else:  # kind == "yaml"
+            patched_path = run_dir / "patched.yaml"
+            artifacts_dir = run_dir / "bzt"
+            try:
+                patched_bytes = patch_taurus(
+                    source.read_bytes(),
+                    mode=mode,
+                    users=users,
+                    rampup=rampup,
+                    duration=duration,
+                )
+            except TaurusInjectionError as exc:
+                await sio.emit("error", {"error": str(exc)}, to=sid)
+                return
+            patched_path.write_bytes(patched_bytes)
+
+            asyncio.create_task(_run_taurus_in_background(
+                sid=sid,
+                run_id=test_id,
+                user_id=user_id,
+                yaml_path=patched_path,
+                artifacts_dir=artifacts_dir,
+                mode=mode,
+                emit=emit_to_client,
+            ))
+
+        print(f"[SCENARIO] Started {test_id} for client {sid} (kind={kind}, mode={mode})")
+
+    except Exception as exc:
+        print(f"[ERROR] start_scenario failed: {exc}")
+        await sio.emit("error", {"error": str(exc)}, to=sid)
+
+
+async def _run_jmx_in_background(
+    *,
+    sid,
+    run_id,
+    user_id,
+    jmx_path,
+    jtl_path,
+    log_path,
+    mode,
+    users,
+    rampup,
+    duration,
+    emit,
+):
+    try:
+        await run_scenario(
+            run_id=run_id,
+            jmx_path=jmx_path,
+            jtl_path=jtl_path,
+            log_path=log_path,
+            mode=mode,
+            users=users,
+            rampup=rampup,
+            duration=duration,
+            on_event=emit,
+        )
+        print(f"[SCENARIO] {run_id} (jmx) completed for user {user_id}")
+    except RunFailed as exc:
+        print(f"[SCENARIO] {run_id} (jmx) failed: {exc}")
+    except Exception as exc:
+        print(f"[ERROR] scenario {run_id} (jmx) crashed: {exc}")
+        await sio.emit("error", {"error": str(exc), "run_id": run_id}, to=sid)
+
+
+async def _run_taurus_in_background(
+    *,
+    sid,
+    run_id,
+    user_id,
+    yaml_path,
+    artifacts_dir,
+    mode,
+    emit,
+):
+    try:
+        await run_taurus_scenario(
+            run_id=run_id,
+            yaml_path=yaml_path,
+            artifacts_dir=artifacts_dir,
+            mode=mode,
+            on_event=emit,
+        )
+        print(f"[SCENARIO] {run_id} (yaml) completed for user {user_id}")
+    except RunFailed as exc:
+        print(f"[SCENARIO] {run_id} (yaml) failed: {exc}")
+    except Exception as exc:
+        print(f"[ERROR] scenario {run_id} (yaml) crashed: {exc}")
+        await sio.emit("error", {"error": str(exc), "run_id": run_id}, to=sid)
 
 
 # -------------------------------------------------

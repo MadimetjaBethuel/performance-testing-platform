@@ -1,6 +1,21 @@
-version: "3.8"
-
 services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: loadforge
+      POSTGRES_PASSWORD: loadforge
+      POSTGRES_DB: loadforge_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loadforge -d loadforge_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -8,22 +23,50 @@ services:
     ports:
       - "5001:5001"
     environment:
-      - PORT=5001
+      PORT: 5001
     volumes:
+      # Code mount for dev iteration. JMeter + python deps live outside /app
+      # (system Python site-packages and /opt/apache-jmeter-*) so they survive.
       - ./backend:/app
-      - /app/.venv
+      # Persist uploaded .jmx files and per-run JTL/logs across container restarts.
+      - scenario_data:/app/data/scenarios
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:5001/health || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+      start_period: 30s
+    restart: unless-stopped
 
   frontend:
     build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
+      context: ./loadforge
+      dockerfile: Dockerfile
+      # NEXT_PUBLIC_* must be passed at BUILD time — Next.js inlines them into
+      # the client bundle during `pnpm build`. env_file is runtime-only and won't
+      # reach the build. Defaults wired for local docker-compose; override in a
+      # project-root .env if you deploy elsewhere.
+      args:
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+        NEXT_PUBLIC_BETTER_AUTH_CALLBACK: ${NEXT_PUBLIC_BETTER_AUTH_CALLBACK:-http://localhost:3000}
     ports:
       - "3000:3000"
+    # Loads BETTER_AUTH_SECRET and the rest of the runtime env from the existing loadforge .env.
+    env_file:
+      - ./loadforge/.env
     environment:
-      - SOCKET_URL=http://localhost:5001
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      # Compose overrides for inside-network DNS. These take precedence over .env.
+      SOCKET_URL: http://backend:5001
+      DATABASE_URL: postgresql://loadforge:loadforge@postgres:5432/loadforge_dev
+    # No bind mounts here — production Dockerfile bakes the build, host code
+    # would override it. Edit code → docker compose build frontend → up.
     depends_on:
-      - backend
+      postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  scenario_data:
