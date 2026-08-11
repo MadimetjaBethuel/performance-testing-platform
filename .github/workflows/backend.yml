@@ -1,0 +1,38 @@
+name: Deploy Backend (Azure)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/backend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/docker-login@v1
+        with:
+          login-server: egovregistry.azurecr.io
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and push backend image
+        run: |
+          docker build \
+            -t egovregistry.azurecr.io/loadforge-backend:${{ github.sha }} \
+            -t egovregistry.azurecr.io/loadforge-backend:latest \
+            ./backend
+          docker push -a egovregistry.azurecr.io/loadforge-backend
+
+      - uses: azure/webapps-deploy@v3
+        with:
+          app-name: loadforge-backend-prod
+          publish-profile: ${{ secrets.AZURE_BACKEND_PUBLISH_PROFILE }}
+          images: egovregistry.azurecr.io/loadforge-backend:${{ github.sha }}
